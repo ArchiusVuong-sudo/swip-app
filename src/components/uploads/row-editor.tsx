@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, X } from "lucide-react";
+import { CSV_COLUMNS } from "@/lib/csv/constants";
 
 interface RowData {
   [key: string]: string | number | undefined;
@@ -34,91 +35,92 @@ interface RowEditorProps {
   errors?: Array<{ field: string; message: string }>;
 }
 
+// Use actual CSV column names as keys
 const fieldGroups = {
   identifiers: {
     label: "Package Identifiers",
     fields: [
-      { key: "external_id", label: "External ID" },
-      { key: "house_bill_number", label: "House Bill Number" },
-      { key: "barcode", label: "Barcode" },
-      { key: "container_id", label: "Container ID" },
+      { key: CSV_COLUMNS.EXTERNAL_ID, label: "External ID" },
+      { key: CSV_COLUMNS.HOUSE_BILL_NUMBER, label: "House Bill Number" },
+      { key: CSV_COLUMNS.BARCODE, label: "Barcode" },
+      { key: CSV_COLUMNS.CONTAINER_ID, label: "Container ID" },
     ],
   },
   platform: {
     label: "Platform Information",
     fields: [
-      { key: "platform_id", label: "Platform ID" },
-      { key: "seller_id", label: "Seller ID" },
+      { key: CSV_COLUMNS.PLATFORM_ID, label: "Platform ID" },
+      { key: CSV_COLUMNS.SELLER_ID, label: "Seller ID" },
     ],
   },
   shipping: {
     label: "Shipping Details",
     fields: [
-      { key: "export_country", label: "Export Country (ISO3)" },
-      { key: "destination_country", label: "Destination Country (ISO3)" },
-      { key: "weight_value", label: "Weight Value" },
-      { key: "weight_unit", label: "Weight Unit (K/L)" },
-      { key: "carrier_id", label: "Carrier ID" },
+      { key: CSV_COLUMNS.EXPORT_COUNTRY, label: "Export Country (ISO3)" },
+      { key: CSV_COLUMNS.DESTINATION_COUNTRY, label: "Destination Country (ISO3)" },
+      { key: CSV_COLUMNS.GROSS_WEIGHT_VALUE, label: "Weight Value" },
+      { key: CSV_COLUMNS.GROSS_WEIGHT_UNIT, label: "Weight Unit (K/L)" },
+      { key: CSV_COLUMNS.CARRIER_ID, label: "Carrier ID" },
     ],
   },
   shipper: {
     label: "Shipper Address",
     fields: [
-      { key: "shipper_name", label: "Name" },
-      { key: "shipper_address_1", label: "Address Line 1" },
-      { key: "shipper_address_2", label: "Address Line 2" },
-      { key: "shipper_city", label: "City" },
-      { key: "shipper_state", label: "State" },
-      { key: "shipper_postal_code", label: "Postal Code" },
-      { key: "shipper_country", label: "Country (ISO3)" },
-      { key: "shipper_phone", label: "Phone" },
-      { key: "shipper_email", label: "Email" },
+      { key: CSV_COLUMNS.SHIPPER_NAME, label: "Name" },
+      { key: CSV_COLUMNS.SHIPPER_ADDRESS_1, label: "Address Line 1" },
+      { key: CSV_COLUMNS.SHIPPER_ADDRESS_2, label: "Address Line 2" },
+      { key: CSV_COLUMNS.SHIPPER_CITY, label: "City" },
+      { key: CSV_COLUMNS.SHIPPER_STATE, label: "State" },
+      { key: CSV_COLUMNS.SHIPPER_POSTAL_CODE, label: "Postal Code" },
+      { key: CSV_COLUMNS.SHIPPER_COUNTRY, label: "Country (ISO3)" },
+      { key: CSV_COLUMNS.SHIPPER_PHONE, label: "Phone" },
+      { key: CSV_COLUMNS.SHIPPER_EMAIL, label: "Email" },
     ],
   },
   consignee: {
     label: "Consignee Address",
     fields: [
-      { key: "consignee_name", label: "Name" },
-      { key: "consignee_address_1", label: "Address Line 1" },
-      { key: "consignee_address_2", label: "Address Line 2" },
-      { key: "consignee_city", label: "City" },
-      { key: "consignee_state", label: "State" },
-      { key: "consignee_postal_code", label: "Postal Code" },
-      { key: "consignee_country", label: "Country (ISO3)" },
-      { key: "consignee_phone", label: "Phone" },
-      { key: "consignee_email", label: "Email" },
+      { key: CSV_COLUMNS.CONSIGNEE_NAME, label: "Name" },
+      { key: CSV_COLUMNS.CONSIGNEE_ADDRESS_1, label: "Address Line 1" },
+      { key: CSV_COLUMNS.CONSIGNEE_ADDRESS_2, label: "Address Line 2" },
+      { key: CSV_COLUMNS.CONSIGNEE_CITY, label: "City" },
+      { key: CSV_COLUMNS.CONSIGNEE_STATE, label: "State" },
+      { key: CSV_COLUMNS.CONSIGNEE_POSTAL_CODE, label: "Postal Code" },
+      { key: CSV_COLUMNS.CONSIGNEE_COUNTRY, label: "Country (ISO3)" },
+      { key: CSV_COLUMNS.CONSIGNEE_PHONE, label: "Phone" },
+      { key: CSV_COLUMNS.CONSIGNEE_EMAIL, label: "Email" },
     ],
   },
   product: {
     label: "Product Details",
     fields: [
-      { key: "product_sku", label: "SKU" },
-      { key: "product_name", label: "Product Name" },
-      { key: "product_description", label: "Description" },
-      { key: "product_url", label: "Product URL" },
-      { key: "product_categories", label: "Categories" },
-      { key: "product_quantity", label: "Quantity" },
+      { key: CSV_COLUMNS.PRODUCT_SKU, label: "SKU" },
+      { key: CSV_COLUMNS.PRODUCT_NAME, label: "Product Name" },
+      { key: CSV_COLUMNS.PRODUCT_DECLARED_NAME, label: "Declared Name" },
+      { key: CSV_COLUMNS.PRODUCT_DESCRIPTION, label: "Description" },
+      { key: CSV_COLUMNS.PRODUCT_URL, label: "Product URL" },
+      { key: CSV_COLUMNS.PRODUCT_CATEGORIES, label: "Categories" },
+      { key: CSV_COLUMNS.PRODUCT_QUANTITY, label: "Quantity" },
     ],
   },
   pricing: {
     label: "Pricing & Customs",
     fields: [
-      { key: "declared_value", label: "Declared Value (USD)" },
-      { key: "list_price", label: "List Price (USD)" },
-      { key: "declared_name", label: "Declared Name" },
-      { key: "origin_country", label: "Origin Country (ISO3)" },
-      { key: "hs_code", label: "HS Code" },
-      { key: "ean_upc", label: "EAN/UPC" },
-      { key: "pieces", label: "Pieces" },
+      { key: CSV_COLUMNS.DECLARED_VALUE, label: "Declared Value (USD)" },
+      { key: CSV_COLUMNS.LIST_PRICE, label: "List Price (USD)" },
+      { key: CSV_COLUMNS.ORIGIN_COUNTRY, label: "Origin Country (ISO3)" },
+      { key: CSV_COLUMNS.HS_CODE, label: "HS Code" },
+      { key: CSV_COLUMNS.EAN_UPC, label: "EAN/UPC" },
+      { key: CSV_COLUMNS.NUMBER_OF_PIECES, label: "Pieces" },
     ],
   },
   images: {
     label: "Product Images",
     fields: [
-      { key: "product_image_url", label: "Image URL" },
-      { key: "product_image_1", label: "Image 1 (URL/Base64)" },
-      { key: "product_image_2", label: "Image 2 (URL/Base64)" },
-      { key: "product_image_3", label: "Image 3 (URL/Base64)" },
+      { key: CSV_COLUMNS.PRODUCT_IMAGE_URL, label: "Image URL" },
+      { key: CSV_COLUMNS.PRODUCT_IMAGE_1, label: "Image 1 (Base64)" },
+      { key: CSV_COLUMNS.PRODUCT_IMAGE_2, label: "Image 2 (Base64)" },
+      { key: CSV_COLUMNS.PRODUCT_IMAGE_3, label: "Image 3 (Base64)" },
     ],
   },
 };
@@ -132,6 +134,11 @@ export function RowEditor({
   errors = [],
 }: RowEditorProps) {
   const [editedRow, setEditedRow] = useState<RowData>({ ...row });
+
+  // Sync state when row prop changes (e.g., when opening editor for a different row)
+  useEffect(() => {
+    setEditedRow({ ...row });
+  }, [row]);
 
   const handleFieldChange = (key: string, value: string) => {
     setEditedRow((prev) => ({

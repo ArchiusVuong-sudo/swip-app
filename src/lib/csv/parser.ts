@@ -11,6 +11,7 @@ import {
   type FileValidationResult,
   type ValidationError,
 } from "@/lib/validation/schemas";
+import type { PackageScreeningRequest } from "@/lib/safepackage/types";
 
 export interface ParsedCSVRow {
   [key: string]: string;
@@ -321,4 +322,95 @@ export function revalidateRows(
     ...validationResult,
     rows,
   };
+}
+
+/**
+ * Convert a CSV row to SafePackage API payload format
+ */
+export function rowToApiPayload(row: ParsedCSVRow): PackageScreeningRequest {
+  const transformed = transformRow(row);
+
+  // Collect images (base64 or URL)
+  const images: string[] = [];
+  if (transformed.productImage1) images.push(String(transformed.productImage1));
+  if (transformed.productImage2) images.push(String(transformed.productImage2));
+  if (transformed.productImage3) images.push(String(transformed.productImage3));
+  if (transformed.productImageUrl) images.push(String(transformed.productImageUrl));
+
+  return {
+    externalId: String(transformed.externalId || ""),
+    platformId: String(transformed.platformId || ""),
+    sellerId: String(transformed.sellerId || ""),
+    exportCountry: String(transformed.exportCountry || ""),
+    destinationCountry: String(transformed.destinationCountry || ""),
+    houseBillNumber: String(transformed.houseBillNumber || ""),
+    barcode: String(transformed.barcode || ""),
+    containerId: transformed.containerId ? String(transformed.containerId) : undefined,
+    carrierId: transformed.carrierId ? String(transformed.carrierId) : undefined,
+    weight: {
+      value: Number(transformed.weightValue) || 0,
+      unit: (transformed.weightUnit as "K" | "L") || "K",
+    },
+    from: {
+      name: String(transformed.shipperName || ""),
+      line1: String(transformed.shipperLine1 || ""),
+      line2: transformed.shipperLine2 ? String(transformed.shipperLine2) : undefined,
+      city: String(transformed.shipperCity || ""),
+      state: String(transformed.shipperState || ""),
+      postalCode: String(transformed.shipperPostalCode || ""),
+      country: String(transformed.shipperCountry || ""),
+      phone: transformed.shipperPhone ? String(transformed.shipperPhone) : undefined,
+      email: transformed.shipperEmail ? String(transformed.shipperEmail) : undefined,
+    },
+    to: {
+      name: String(transformed.consigneeName || ""),
+      line1: String(transformed.consigneeLine1 || ""),
+      line2: transformed.consigneeLine2 ? String(transformed.consigneeLine2) : undefined,
+      city: String(transformed.consigneeCity || ""),
+      state: String(transformed.consigneeState || ""),
+      postalCode: String(transformed.consigneePostalCode || ""),
+      country: String(transformed.consigneeCountry || ""),
+      phone: transformed.consigneePhone ? String(transformed.consigneePhone) : undefined,
+      email: transformed.consigneeEmail ? String(transformed.consigneeEmail) : undefined,
+    },
+    products: [
+      {
+        quantity: Number(transformed.productQuantity) || 1,
+        declaredValue: Number(transformed.declaredValue) || 0,
+        declaredName: transformed.productDeclaredName ? String(transformed.productDeclaredName) : undefined,
+        product: {
+          sku: String(transformed.productSku || ""),
+          url: String(transformed.productUrl || ""),
+          name: String(transformed.productName || ""),
+          description: String(transformed.productDescription || ""),
+          price: Number(transformed.listPrice) || 0,
+          images,
+          originCountry: String(transformed.originCountry || ""),
+          categories: transformed.productCategories as string[] | undefined,
+          pieces: transformed.pieces ? Number(transformed.pieces) : undefined,
+          ean: transformed.ean ? String(transformed.ean) : undefined,
+          hts: transformed.hsCode ? String(transformed.hsCode) : undefined,
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Convert all valid CSV rows to API payloads
+ */
+export function rowsToApiPayloads(
+  rows: ParsedCSVRow[],
+  validationResults: RowValidationResult[]
+): PackageScreeningRequest[] {
+  return rows
+    .filter((_, index) => validationResults[index]?.isValid)
+    .map((row) => rowToApiPayload(row));
+}
+
+/**
+ * Export rows back to CSV format
+ */
+export function rowsToCSV(rows: ParsedCSVRow[]): string {
+  return Papa.unparse(rows);
 }
