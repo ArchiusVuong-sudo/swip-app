@@ -1,0 +1,411 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Send,
+  FileText,
+  Package,
+  User,
+  MapPin,
+  DollarSign,
+  Loader2,
+} from "lucide-react";
+import type { FileValidationResult } from "@/lib/validation/schemas";
+
+interface SubmissionReviewDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (notes: string) => void;
+  validationResult: FileValidationResult;
+  fileName: string;
+  isSubmitting?: boolean;
+}
+
+export function SubmissionReviewDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  validationResult,
+  fileName,
+  isSubmitting = false,
+}: SubmissionReviewDialogProps) {
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [confirmations, setConfirmations] = useState({
+    dataReviewed: false,
+    errorsAcknowledged: false,
+    readyToSubmit: false,
+  });
+
+  const allConfirmed =
+    confirmations.dataReviewed &&
+    (validationResult.isValid || confirmations.errorsAcknowledged) &&
+    confirmations.readyToSubmit;
+
+  const handleConfirm = () => {
+    if (allConfirmed) {
+      onConfirm(reviewNotes);
+    }
+  };
+
+  // Get sample data for preview
+  const sampleRows = validationResult.rows?.slice(0, 3) || [];
+  const hasErrors = validationResult.invalidRows > 0;
+
+  // Group summary statistics
+  const uniquePlatforms = new Set(
+    validationResult.rows?.map((r) => r.platform_id).filter(Boolean)
+  );
+  const uniqueDestinations = new Set(
+    validationResult.rows?.map((r) => r.destination_country).filter(Boolean)
+  );
+  const totalDeclaredValue = validationResult.rows?.reduce((sum, row) => {
+    const value = parseFloat(String(row.declared_value || 0));
+    return sum + (isNaN(value) ? 0 : value);
+  }, 0) || 0;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Pre-Submission Review
+          </DialogTitle>
+          <DialogDescription>
+            Please review the data before submitting to the SafePackage API.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea className="h-[60vh] pr-4">
+          <div className="space-y-6">
+            {/* File Summary */}
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Submission Summary
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">File Name</p>
+                  <p className="font-medium truncate" title={fileName}>
+                    {fileName}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Total Packages</p>
+                  <p className="font-medium">{validationResult.totalRows}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Valid Rows</p>
+                  <p className="font-medium text-green-600">
+                    {validationResult.validRows}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Invalid Rows</p>
+                  <p
+                    className={`font-medium ${hasErrors ? "text-red-600" : "text-green-600"}`}
+                  >
+                    {validationResult.invalidRows}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Validation Status */}
+            <div
+              className={`p-4 rounded-lg border ${
+                validationResult.isValid
+                  ? "bg-green-50 border-green-200"
+                  : "bg-yellow-50 border-yellow-200"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                {validationResult.isValid ? (
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                )}
+                <div>
+                  <p
+                    className={`font-medium ${
+                      validationResult.isValid
+                        ? "text-green-800"
+                        : "text-yellow-800"
+                    }`}
+                  >
+                    {validationResult.isValid
+                      ? "All rows passed validation"
+                      : `${validationResult.invalidRows} rows have validation errors`}
+                  </p>
+                  <p
+                    className={`text-sm ${
+                      validationResult.isValid
+                        ? "text-green-600"
+                        : "text-yellow-600"
+                    }`}
+                  >
+                    {validationResult.isValid
+                      ? "Data is ready for submission."
+                      : "Invalid rows will be saved but not processed. You can fix them later."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Overview */}
+            <Accordion type="multiple" defaultValue={["overview", "sample"]}>
+              <AccordionItem value="overview">
+                <AccordionTrigger>
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Data Overview
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm p-2">
+                    <div>
+                      <p className="text-muted-foreground">Platforms</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {Array.from(uniquePlatforms).map((p) => (
+                          <Badge key={String(p)} variant="secondary" className="text-xs">
+                            {String(p)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Destinations</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {Array.from(uniqueDestinations).map((d) => (
+                          <Badge key={String(d)} variant="outline" className="text-xs">
+                            {String(d)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Total Declared Value</p>
+                      <p className="font-medium text-lg">
+                        ${totalDeclaredValue.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="sample">
+                <AccordionTrigger>
+                  <span className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Sample Data Preview ({Math.min(3, sampleRows.length)} of{" "}
+                    {validationResult.totalRows} rows)
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3">
+                    {sampleRows.map((row, index) => (
+                      <div
+                        key={index}
+                        className="p-3 border rounded-lg text-sm bg-background"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">
+                            Row {index + 1}: {row.external_id || "N/A"}
+                          </span>
+                          <Badge variant="outline">{row.platform_id}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                          <div>
+                            <MapPin className="h-3 w-3 inline mr-1" />
+                            {row.shipper_city}, {row.shipper_country} →{" "}
+                            {row.consignee_city}, {row.consignee_country}
+                          </div>
+                          <div>
+                            <DollarSign className="h-3 w-3 inline mr-1" />$
+                            {row.declared_value}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {hasErrors && (
+                <AccordionItem value="errors">
+                  <AccordionTrigger>
+                    <span className="flex items-center gap-2 text-red-600">
+                      <XCircle className="h-4 w-4" />
+                      Validation Errors ({validationResult.invalidRows} rows)
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2 max-h-[200px] overflow-auto">
+                      {validationResult.results
+                        .filter((r) => !r.isValid)
+                        .slice(0, 10)
+                        .map((row) => (
+                          <div
+                            key={row.rowNumber}
+                            className="p-2 bg-red-50 rounded text-sm"
+                          >
+                            <p className="font-medium text-red-800">
+                              Row {row.rowNumber}
+                            </p>
+                            <ul className="text-xs text-red-600 mt-1">
+                              {row.errors.slice(0, 3).map((err, i) => (
+                                <li key={i}>
+                                  • {err.field}: {err.message}
+                                </li>
+                              ))}
+                              {row.errors.length > 3 && (
+                                <li>• ...and {row.errors.length - 3} more</li>
+                              )}
+                            </ul>
+                          </div>
+                        ))}
+                      {validationResult.invalidRows > 10 && (
+                        <p className="text-sm text-muted-foreground text-center py-2">
+                          ...and {validationResult.invalidRows - 10} more rows
+                          with errors
+                        </p>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+            </Accordion>
+
+            <Separator />
+
+            {/* Review Notes */}
+            <div className="space-y-2">
+              <Label htmlFor="review-notes">Review Notes (Optional)</Label>
+              <Textarea
+                id="review-notes"
+                placeholder="Add any notes about this submission for audit purposes..."
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            {/* Confirmations */}
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+              <p className="font-medium text-sm">
+                Please confirm before submitting:
+              </p>
+
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="data-reviewed"
+                  checked={confirmations.dataReviewed}
+                  onCheckedChange={(checked) =>
+                    setConfirmations((prev) => ({
+                      ...prev,
+                      dataReviewed: checked === true,
+                    }))
+                  }
+                />
+                <Label
+                  htmlFor="data-reviewed"
+                  className="text-sm font-normal leading-relaxed cursor-pointer"
+                >
+                  I have reviewed the data and confirm it is accurate
+                </Label>
+              </div>
+
+              {hasErrors && (
+                <div className="flex items-start space-x-3">
+                  <Checkbox
+                    id="errors-acknowledged"
+                    checked={confirmations.errorsAcknowledged}
+                    onCheckedChange={(checked) =>
+                      setConfirmations((prev) => ({
+                        ...prev,
+                        errorsAcknowledged: checked === true,
+                      }))
+                    }
+                  />
+                  <Label
+                    htmlFor="errors-acknowledged"
+                    className="text-sm font-normal leading-relaxed cursor-pointer"
+                  >
+                    I acknowledge that {validationResult.invalidRows} rows have
+                    validation errors and will not be processed
+                  </Label>
+                </div>
+              )}
+
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="ready-to-submit"
+                  checked={confirmations.readyToSubmit}
+                  onCheckedChange={(checked) =>
+                    setConfirmations((prev) => ({
+                      ...prev,
+                      readyToSubmit: checked === true,
+                    }))
+                  }
+                />
+                <Label
+                  htmlFor="ready-to-submit"
+                  className="text-sm font-normal leading-relaxed cursor-pointer"
+                >
+                  I am ready to submit this data for processing
+                </Label>
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!allConfirmed || isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="mr-2 h-4 w-4" />
+                Confirm & Submit
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
