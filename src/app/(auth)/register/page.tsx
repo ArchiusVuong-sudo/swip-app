@@ -105,7 +105,7 @@ export default function RegisterPage() {
           Enter your details to get started with SWIP SafePackage
         </CardDescription>
       </CardHeader>
-      <form onSubmit={handleRegister}>
+      <form onSubmit={handleRegister} className="flex flex-col gap-4">
         <CardContent className="space-y-4">
           {error && (
             <Alert variant="destructive">

@@ -35,6 +35,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { FileValidationResult } from "@/lib/validation/schemas";
+import { CSV_COLUMNS } from "@/lib/csv/constants";
 
 interface SubmissionReviewDialogProps {
   isOpen: boolean;
@@ -75,15 +76,15 @@ export function SubmissionReviewDialog({
   const sampleRows = validationResult.rows?.slice(0, 3) || [];
   const hasErrors = validationResult.invalidRows > 0;
 
-  // Group summary statistics
+  // Group summary statistics - use CSV column names
   const uniquePlatforms = new Set(
-    validationResult.rows?.map((r) => r.platform_id).filter(Boolean)
+    validationResult.rows?.map((r) => r[CSV_COLUMNS.PLATFORM_ID]).filter(Boolean)
   );
   const uniqueDestinations = new Set(
-    validationResult.rows?.map((r) => r.destination_country).filter(Boolean)
+    validationResult.rows?.map((r) => r[CSV_COLUMNS.DESTINATION_COUNTRY]).filter(Boolean)
   );
   const totalDeclaredValue = validationResult.rows?.reduce((sum, row) => {
-    const value = parseFloat(String(row.declared_value || 0));
+    const value = parseFloat(String(row[CSV_COLUMNS.DECLARED_VALUE] || 0));
     return sum + (isNaN(value) ? 0 : value);
   }, 0) || 0;
 
@@ -235,19 +236,19 @@ export function SubmissionReviewDialog({
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">
-                            Row {index + 1}: {row.external_id || "N/A"}
+                            Row {index + 1}: {row[CSV_COLUMNS.EXTERNAL_ID] || "N/A"}
                           </span>
-                          <Badge variant="outline">{row.platform_id}</Badge>
+                          <Badge variant="outline">{row[CSV_COLUMNS.PLATFORM_ID]}</Badge>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                           <div>
                             <MapPin className="h-3 w-3 inline mr-1" />
-                            {row.shipper_city}, {row.shipper_country} →{" "}
-                            {row.consignee_city}, {row.consignee_country}
+                            {row[CSV_COLUMNS.SHIPPER_CITY]}, {row[CSV_COLUMNS.SHIPPER_COUNTRY]} →{" "}
+                            {row[CSV_COLUMNS.CONSIGNEE_CITY]}, {row[CSV_COLUMNS.CONSIGNEE_COUNTRY]}
                           </div>
                           <div>
                             <DollarSign className="h-3 w-3 inline mr-1" />$
-                            {row.declared_value}
+                            {row[CSV_COLUMNS.DECLARED_VALUE]}
                           </div>
                         </div>
                       </div>
