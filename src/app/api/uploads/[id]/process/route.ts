@@ -198,93 +198,136 @@ export async function POST(
       }>,
     };
 
-    for (const row of rows) {
-      try {
-        // Build the package screening request (async for image fetching)
-        console.log("Building package request for:", row.external_id);
-        const packageRequest = await buildPackageRequest(row);
-        console.log("Package request built:", JSON.stringify(packageRequest, null, 2).slice(0, 500));
+    // Process rows in parallel batches for better performance
+    const BATCH_SIZE = 5; // Process 5 rows at a time
 
-        // Call SafePackage API
-        console.log("Calling SafePackage API...");
-        const response = await client.screenPackage(packageRequest);
-        console.log("SafePackage API response:", JSON.stringify(response, null, 2));
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(rows.length / BATCH_SIZE)}`);
 
-        if (response.success && response.data) {
-          const screeningResult = response.data;
-          const status = codeToStatus[screeningResult.code] || "pending";
+      const batchPromises = batch.map(async (row) => {
+        try {
+          // Build the package screening request (async for image fetching)
+          console.log("Building package request for:", row.external_id);
+          const packageRequest = await buildPackageRequest(row);
+          console.log("Package request built for:", row.external_id);
 
-          // Create package record in database
-          const { error: packageError } = await (supabase.from("packages") as ReturnType<typeof supabase.from>).insert({
-            user_id: user.id,
-            upload_id: uploadId,
-            external_id: row.external_id,
-            house_bill_number: row.house_bill_number,
-            barcode: row.barcode,
-            safepackage_id: screeningResult.packageId,
-            screening_code: screeningResult.code,
-            screening_status: screeningResult.status,
-            status: status,
-            label_qr_code: screeningResult.labelQrCode,
-            platform_id: row.platform_id,
-            seller_id: row.seller_id,
-            export_country: row.export_country,
-            destination_country: row.destination_country,
-            weight_value: row.weight_value,
-            weight_unit: row.weight_unit,
-            shipper_name: row.shipper_name,
-            shipper_line1: row.shipper_address_1,
-            shipper_line2: row.shipper_address_2,
-            shipper_city: row.shipper_city,
-            shipper_state: row.shipper_state,
-            shipper_postal_code: row.shipper_postal_code,
-            shipper_country: row.shipper_country,
-            shipper_phone: row.shipper_phone,
-            shipper_email: row.shipper_email,
-            consignee_name: row.consignee_name,
-            consignee_line1: row.consignee_address_1,
-            consignee_line2: row.consignee_address_2,
-            consignee_city: row.consignee_city,
-            consignee_state: row.consignee_state,
-            consignee_postal_code: row.consignee_postal_code,
-            consignee_country: row.consignee_country,
-            consignee_phone: row.consignee_phone,
-            consignee_email: row.consignee_email,
-            screening_response: screeningResult,
-          } as Record<string, unknown>);
+          // Call SafePackage API
+          console.log("Calling SafePackage API for:", row.external_id);
+          const response = await client.screenPackage(packageRequest);
+          console.log("SafePackage API response for:", row.external_id, "- code:", response.data?.code);
 
-          if (packageError) {
-            console.error("Error creating package:", packageError);
+          if (response.success && response.data) {
+            const screeningResult = response.data;
+            const status = codeToStatus[screeningResult.code] || "pending";
+
+            // Create package record in database
+            const { error: packageError } = await (supabase.from("packages") as ReturnType<typeof supabase.from>).insert({
+              user_id: user.id,
+              upload_id: uploadId,
+              external_id: row.external_id,
+              house_bill_number: row.house_bill_number,
+              barcode: row.barcode,
+              safepackage_id: screeningResult.packageId,
+              screening_code: screeningResult.code,
+              screening_status: screeningResult.status,
+              status: status,
+              label_qr_code: screeningResult.labelQrCode,
+              platform_id: row.platform_id,
+              seller_id: row.seller_id,
+              export_country: row.export_country,
+              destination_country: row.destination_country,
+              weight_value: row.weight_value,
+              weight_unit: row.weight_unit,
+              shipper_name: row.shipper_name,
+              shipper_line1: row.shipper_address_1,
+              shipper_line2: row.shipper_address_2,
+              shipper_city: row.shipper_city,
+              shipper_state: row.shipper_state,
+              shipper_postal_code: row.shipper_postal_code,
+              shipper_country: row.shipper_country,
+              shipper_phone: row.shipper_phone,
+              shipper_email: row.shipper_email,
+              consignee_name: row.consignee_name,
+              consignee_line1: row.consignee_address_1,
+              consignee_line2: row.consignee_address_2,
+              consignee_city: row.consignee_city,
+              consignee_state: row.consignee_state,
+              consignee_postal_code: row.consignee_postal_code,
+              consignee_country: row.consignee_country,
+              consignee_phone: row.consignee_phone,
+              consignee_email: row.consignee_email,
+              screening_response: screeningResult,
+            } as Record<string, unknown>);
+
+            if (packageError) {
+              console.error("Error creating package:", packageError);
+            }
+
+            return {
+              success: true,
+              externalId: row.external_id || "",
+              status: screeningResult.status,
+              safepackageId: screeningResult.packageId,
+              code: screeningResult.code,
+            };
+          } else {
+            // Log more detailed error for debugging
+            console.error("API error for", row.external_id, ":", JSON.stringify(response.error, null, 2));
+            const errorDetails = response.error?.details as Record<string, unknown> | undefined;
+            // Capture more detail: include errors array if present (validation errors)
+            let errorMessage = response.error?.message || "Unknown error";
+            if (errorDetails?.errors && Array.isArray(errorDetails.errors)) {
+              errorMessage = (errorDetails.errors as Array<{ message?: string }>)
+                .map(e => e.message)
+                .filter(Boolean)
+                .join("; ");
+            } else if (errorDetails?.message) {
+              errorMessage = errorDetails.message as string;
+            }
+            return {
+              success: false,
+              externalId: row.external_id || "",
+              status: "failed",
+              error: errorMessage,
+            };
           }
+        } catch (error) {
+          console.error("Error processing row:", row.external_id, error);
+          return {
+            success: false,
+            externalId: row.external_id || "",
+            status: "failed",
+            error: error instanceof Error ? error.message : "Processing error",
+          };
+        }
+      });
 
-          // Update counters
+      // Wait for batch to complete
+      const batchResults = await Promise.all(batchPromises);
+
+      // Aggregate results
+      for (const result of batchResults) {
+        if (result.success) {
           results.processed++;
-          if (screeningResult.code === 1) results.accepted++;
-          else if (screeningResult.code === 2) results.rejected++;
-          else if (screeningResult.code === 3) results.inconclusive++;
-          else if (screeningResult.code === 4) results.auditRequired++;
+          if (result.code === 1) results.accepted++;
+          else if (result.code === 2) results.rejected++;
+          else if (result.code === 3) results.inconclusive++;
+          else if (result.code === 4) results.auditRequired++;
 
           results.packages.push({
-            externalId: row.external_id || "",
-            status: screeningResult.status,
-            safepackageId: screeningResult.packageId,
+            externalId: result.externalId,
+            status: result.status,
+            safepackageId: result.safepackageId,
           });
         } else {
           results.failed++;
           results.packages.push({
-            externalId: row.external_id || "",
+            externalId: result.externalId,
             status: "failed",
-            error: response.error?.message || "Unknown error",
+            error: result.error,
           });
         }
-      } catch (error) {
-        console.error("Error processing row:", error);
-        results.failed++;
-        results.packages.push({
-          externalId: row.external_id || "",
-          status: "failed",
-          error: error instanceof Error ? error.message : "Processing error",
-        });
       }
     }
 
@@ -332,6 +375,12 @@ function sanitizePostalCode(postalCode?: string): string {
   return postalCode.replace(/[^a-zA-Z0-9]/g, "");
 }
 
+// Sanitize state: only alphanumeric allowed (no spaces, special chars)
+function sanitizeState(state?: string): string {
+  if (!state) return "";
+  return state.replace(/[^a-zA-Z0-9]/g, "");
+}
+
 // Sanitize HS code: only digits allowed, 6-10 characters
 function sanitizeHsCode(hsCode?: string): string | undefined {
   if (!hsCode || hsCode.trim() === "") return undefined;
@@ -354,6 +403,7 @@ async function buildPackageRequest(row: RowData): Promise<PackageScreeningReques
     imageSources.push(...parseImageField(row.product_images));
   }
   if (row.product_image_url) {
+    console.log("Found product_image_url:", row.product_image_url);
     imageSources.push(...parseImageField(row.product_image_url));
   }
   if (row.product_image_1) {
@@ -366,9 +416,12 @@ async function buildPackageRequest(row: RowData): Promise<PackageScreeningReques
     imageSources.push(row.product_image_3);
   }
 
+  console.log("Image sources for", row.external_id, ":", imageSources.length, "sources");
+
   // Fetch URLs and convert to Base64, filter out any null/empty values
   const rawImages = await processProductImages(imageSources);
   const images = rawImages.filter((img) => img && img.trim() !== "");
+  console.log("Processed images for", row.external_id, ":", images.length, "images (each ~", images[0]?.length || 0, "chars)");
 
   // Parse categories
   const categories: string[] = [];
@@ -416,7 +469,7 @@ async function buildPackageRequest(row: RowData): Promise<PackageScreeningReques
       line1: row.shipper_address_1 || "",
       line2: emptyToUndefined(row.shipper_address_2),
       city: row.shipper_city || "",
-      state: row.shipper_state || "",
+      state: sanitizeState(row.shipper_state),
       postalCode: sanitizePostalCode(row.shipper_postal_code),
       country: row.shipper_country || "",
       phone: sanitizePhone(row.shipper_phone),
@@ -427,7 +480,7 @@ async function buildPackageRequest(row: RowData): Promise<PackageScreeningReques
       line1: row.consignee_address_1 || "",
       line2: emptyToUndefined(row.consignee_address_2),
       city: row.consignee_city || "",
-      state: row.consignee_state || "",
+      state: sanitizeState(row.consignee_state),
       postalCode: sanitizePostalCode(row.consignee_postal_code),
       country: row.consignee_country || "USA",
       phone: sanitizePhone(row.consignee_phone),

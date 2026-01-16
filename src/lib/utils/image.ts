@@ -48,7 +48,7 @@ export async function fetchImageAsBase64(
     timeoutMs?: number;
   } = {}
 ): Promise<string | null> {
-  const { maxRetries = 3, initialDelayMs = 1000, timeoutMs = 30000 } = options;
+  const { maxRetries = 2, initialDelayMs = 500, timeoutMs = 10000 } = options;
 
   // Skip if already base64
   if (url.startsWith("data:image")) {

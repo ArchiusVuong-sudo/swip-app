@@ -84,11 +84,12 @@ export class SafePackageClient {
       const data = await response.json();
 
       if (!response.ok) {
+        console.error(`SafePackage API error [${response.status}] at ${endpoint}:`, JSON.stringify(data, null, 2));
         return {
           success: false,
           error: {
             code: response.status.toString(),
-            message: data.message || response.statusText,
+            message: data.message || data.error || response.statusText,
             details: data,
           },
         };
@@ -148,6 +149,19 @@ export class SafePackageClient {
   async screenPackage(
     data: PackageScreeningRequest
   ): Promise<ApiResponse<PackageScreeningResponse>> {
+    // Log the request payload for debugging (truncate images for readability)
+    const debugData = {
+      ...data,
+      products: data.products.map(p => ({
+        ...p,
+        product: {
+          ...p.product,
+          images: p.product.images?.map(img => `[base64: ${img.length} chars]`) || [],
+        },
+      })),
+    };
+    console.log("SafePackage screenPackage request:", JSON.stringify(debugData, null, 2));
+
     return this.request<PackageScreeningResponse>("/v1/package/screen", {
       method: "POST",
       body: JSON.stringify(data),
