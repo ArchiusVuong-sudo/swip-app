@@ -67,40 +67,43 @@ function RowErrors({ row, isEditing, onEdit, onSave, onCancel, rowData }: RowErr
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          className="w-full justify-between p-3 h-auto hover:bg-red-50"
-        >
-          <div className="flex items-center gap-3">
-            <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-            <span className="text-sm font-medium">Row {row.rowNumber}</span>
-            <Badge variant="destructive" className="ml-2">
-              {row.errors.length} error{row.errors.length !== 1 ? "s" : ""}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            {onEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Pencil className="h-3 w-3 mr-1" />
-                Edit
-              </Button>
-            )}
-            {isOpen ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </div>
-        </Button>
-      </CollapsibleTrigger>
+      <div className="flex items-center w-full hover:bg-red-50">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex-1 flex items-center justify-between p-3 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+              <span className="text-sm font-medium">Row {row.rowNumber}</span>
+              <Badge variant="destructive" className="ml-2">
+                {row.errors.length} error{row.errors.length !== 1 ? "s" : ""}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              {isOpen ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </div>
+          </button>
+        </CollapsibleTrigger>
+        {onEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mr-3"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            <Pencil className="h-3 w-3 mr-1" />
+            Edit
+          </Button>
+        )}
+      </div>
       <CollapsibleContent>
         <div className="px-10 pb-3 space-y-2">
           {row.errors.map((error, index) => (

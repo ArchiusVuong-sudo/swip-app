@@ -617,13 +617,6 @@ export default function UploadsPage() {
       {validationResult && (
         <div className="flex justify-end gap-2">
           <Button
-            variant="outline"
-            onClick={() => handleViewAuditLog("current")}
-          >
-            <History className="mr-2 h-4 w-4" />
-            View Changes
-          </Button>
-          <Button
             size="lg"
             onClick={handleReviewBeforeSubmit}
             disabled={isSubmitting}

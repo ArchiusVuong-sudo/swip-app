@@ -118,6 +118,7 @@ export function AuditLogViewer({
     if (isOpen && (uploadId || packageId)) {
       loadLogs();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, uploadId, packageId]);
 
   const loadLogs = async () => {
@@ -137,12 +138,36 @@ export function AuditLogViewer({
         query = query.eq("package_id", packageId);
       }
 
-      const { data, error } = await query;
+      const result = await query;
+      const { data, error } = result;
 
-      if (error) throw error;
-      setLogs(data || []);
+      // Debug: log the full result
+      if (process.env.NODE_ENV === "development") {
+        console.log("Audit logs query result:", {
+          hasData: !!data,
+          dataLength: data?.length,
+          hasError: !!error,
+          errorType: error ? typeof error : null,
+        });
+      }
+
+      if (error) {
+        // Log all enumerable and non-enumerable properties
+        console.error("Supabase error (raw):", error);
+        console.error("Supabase error keys:", Object.keys(error));
+        console.error("Supabase error prototype:", Object.getPrototypeOf(error));
+        throw new Error(error.message || String(error) || "Failed to load audit logs");
+      }
+
+      // Cast action from enum to string for display
+      const logsWithStringAction = (data || []).map((log: Record<string, unknown>) => ({
+        ...log,
+        action: String(log.action),
+      })) as AuditLog[];
+
+      setLogs(logsWithStringAction);
     } catch (error) {
-      console.error("Error loading audit logs:", error);
+      console.error("Error loading audit logs:", error instanceof Error ? error.message : JSON.stringify(error, null, 2));
     } finally {
       setLoading(false);
     }

@@ -58,10 +58,17 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
     } as Record<string, unknown>);
 
     if (error) {
-      console.error("Error creating audit log:", error);
+      // Extract meaningful error details from Supabase error object
+      const errorMessage = error.message || error.code || String(error) || "Unknown error";
+      console.error("Error creating audit log:", errorMessage, {
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+      });
     }
   } catch (error) {
-    console.error("Error creating audit log:", error);
+    console.error("Error creating audit log:", error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -178,9 +185,16 @@ export async function createServerAuditLog(
     } as Record<string, unknown>);
 
     if (error) {
-      console.error("Error creating server audit log:", error);
+      // Extract meaningful error details from Supabase error object
+      const errorMessage = error.message || error.code || String(error) || "Unknown error";
+      console.error("Error creating server audit log:", errorMessage, {
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+      });
     }
   } catch (error) {
-    console.error("Error creating server audit log:", error);
+    console.error("Error creating server audit log:", error instanceof Error ? error.message : String(error));
   }
 }
