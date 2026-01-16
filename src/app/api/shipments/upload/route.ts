@@ -245,6 +245,9 @@ async function registerShipment(
     packageIds: shipment.packageIds,
   };
 
+  // Log request for debugging
+  console.log(`Registering shipment ${shipment.externalId}:`, JSON.stringify(registrationRequest, null, 2));
+
   // Call SafePackage API
   const apiResult = await client.registerShipment(registrationRequest);
 
@@ -260,27 +263,66 @@ async function registerShipment(
   } as Record<string, unknown>);
 
   if (!apiResult.success) {
+    // Log full error object for debugging
+    console.error(`SafePackage API error for shipment ${shipment.externalId}:`, JSON.stringify(apiResult.error, null, 2));
+
     // Extract detailed error info from API response
-    let errorMessage = apiResult.error?.message || "API call failed";
+    let errorMessage = "API call failed";
 
     // Check if there are additional details in the error response
     if (apiResult.error?.details) {
       const details = apiResult.error.details as Record<string, unknown>;
-      // Handle various error response formats from SafePackage
-      if (typeof details.message === "string") {
+
+      // Try various error message formats from SafePackage API
+      if (typeof details.message === "string" && details.message) {
         errorMessage = details.message;
+      } else if (typeof details.error === "string" && details.error) {
+        errorMessage = details.error;
+      } else if (typeof details.detail === "string" && details.detail) {
+        errorMessage = details.detail;
+      } else if (apiResult.error?.message && apiResult.error.message !== "Bad Request") {
+        errorMessage = apiResult.error.message;
       }
-      if (details.errors && Array.isArray(details.errors)) {
-        const errorDetails = details.errors.map((e: unknown) => {
-          const err = e as { field?: string; message?: string };
-          return err.field ? `${err.field}: ${err.message}` : err.message;
-        }).join("; ");
+
+      // Handle nested errors - can be array or object with field names as keys
+      if (details.errors) {
+        let errorDetails = "";
+
+        if (Array.isArray(details.errors)) {
+          // Array format: [{field, message}, ...]
+          errorDetails = details.errors.map((e: unknown) => {
+            const err = e as { field?: string; message?: string; detail?: string };
+            if (err.field && (err.message || err.detail)) {
+              return `${err.field}: ${err.message || err.detail}`;
+            }
+            return err.message || err.detail || JSON.stringify(err);
+          }).join("; ");
+        } else if (typeof details.errors === "object") {
+          // Object format: {fieldName: [messages], ...}
+          const errorsObj = details.errors as Record<string, string[]>;
+          errorDetails = Object.entries(errorsObj)
+            .map(([field, messages]) => {
+              const msgs = Array.isArray(messages) ? messages.join(", ") : String(messages);
+              return `${field}: ${msgs}`;
+            })
+            .join("; ");
+        }
+
         if (errorDetails) {
-          errorMessage = `${errorMessage} - ${errorDetails}`;
+          errorMessage = errorDetails;
         }
       }
-      // Log full details for debugging
-      console.error(`SafePackage API error for shipment ${shipment.externalId}:`, JSON.stringify(details, null, 2));
+
+      // If we still have a generic message, show the title or raw details
+      if (errorMessage === "API call failed" || errorMessage === "Bad Request") {
+        if (typeof details.title === "string" && details.title) {
+          errorMessage = details.title;
+        } else {
+          errorMessage = JSON.stringify(details);
+        }
+      }
+    } else if (apiResult.error?.message && apiResult.error.message !== "Bad Request") {
+      errorMessage = apiResult.error.message;
     }
 
     return {
