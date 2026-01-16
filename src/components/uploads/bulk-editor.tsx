@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -73,7 +73,6 @@ export function BulkEditor({
   const [pendingChanges, setPendingChanges] = useState<
     Map<number, Record<string, string>>
   >(new Map());
-  const [showOnlyErrors, setShowOnlyErrors] = useState(true);
 
   // Get rows with errors
   const errorRowIndices = useMemo(() => {
@@ -85,6 +84,21 @@ export function BulkEditor({
     });
     return indices;
   }, [validationResult.results]);
+
+  // Default to showing only errors if there are errors, otherwise show all
+  const hasErrors = errorRowIndices.size > 0;
+  const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setShowOnlyErrors(hasErrors);
+      setSelectedRows(new Set());
+      setPendingChanges(new Map());
+      setSelectedField("");
+      setNewValue("");
+    }
+  }, [isOpen, hasErrors]);
 
   // Filter rows based on showOnlyErrors
   const displayRows = useMemo(() => {
@@ -320,9 +334,16 @@ export function BulkEditor({
                       colSpan={9}
                       className="text-center py-8 text-muted-foreground"
                     >
-                      {showOnlyErrors
-                        ? "No rows with errors"
-                        : "No rows to display"}
+                      {showOnlyErrors ? (
+                        <div className="space-y-2">
+                          <p>No rows with errors</p>
+                          <p className="text-xs">
+                            All rows are valid! Uncheck &quot;Show only rows with errors&quot; to see all rows.
+                          </p>
+                        </div>
+                      ) : (
+                        "No rows to display"
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
