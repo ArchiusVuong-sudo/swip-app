@@ -260,11 +260,34 @@ async function registerShipment(
   } as Record<string, unknown>);
 
   if (!apiResult.success) {
+    // Extract detailed error info from API response
+    let errorMessage = apiResult.error?.message || "API call failed";
+
+    // Check if there are additional details in the error response
+    if (apiResult.error?.details) {
+      const details = apiResult.error.details as Record<string, unknown>;
+      // Handle various error response formats from SafePackage
+      if (typeof details.message === "string") {
+        errorMessage = details.message;
+      }
+      if (details.errors && Array.isArray(details.errors)) {
+        const errorDetails = details.errors.map((e: unknown) => {
+          const err = e as { field?: string; message?: string };
+          return err.field ? `${err.field}: ${err.message}` : err.message;
+        }).join("; ");
+        if (errorDetails) {
+          errorMessage = `${errorMessage} - ${errorDetails}`;
+        }
+      }
+      // Log full details for debugging
+      console.error(`SafePackage API error for shipment ${shipment.externalId}:`, JSON.stringify(details, null, 2));
+    }
+
     return {
       externalId: shipment.externalId,
       success: false,
       packageCount: shipment.packageIds.length,
-      error: apiResult.error?.message || "API call failed",
+      error: errorMessage,
     };
   }
 
