@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SUPPORTED_PLATFORMS } from "@/lib/safepackage/platforms";
+import { SUPPORTED_PLATFORMS, getPlatformById } from "@/lib/safepackage/platforms";
 import { CARRIER_IDS, ENTRY_TYPES, TRANSPORT_MODES } from "@/lib/csv/constants";
 
 // =============================================================================
@@ -11,6 +11,7 @@ const postalCodeRegex = /^[A-Za-z0-9]+$/;
 const hsCodeRegex = /^[0-9]{6,10}$/;
 const iso3Regex = /^[A-Z]{3}$/;
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+const eanUpcRegex = /^\d{12,13}$/; // EAN-13 (13 digits) or UPC-12 (12 digits)
 
 // =============================================================================
 // Sanitization Functions
@@ -95,7 +96,11 @@ const productSchema = z.object({
     .regex(hsCodeRegex, "HS code must be 6-10 digits only (no periods or dashes)")
     .optional()
     .nullable(),
-  ean: z.string().max(20, "EAN must be 20 chars max").optional().nullable(),
+  ean: z
+    .string()
+    .regex(eanUpcRegex, "EAN/UPC must be 12 digits (UPC) or 13 digits (EAN)")
+    .optional()
+    .nullable(),
   categories: z.array(z.string()).optional().nullable(),
   pieces: z.number().int("Pieces must be a whole number").positive("Pieces must be at least 1").default(1),
   normalize: z.boolean().default(false),
@@ -189,7 +194,11 @@ export const packageRowSchema = z.object({
     .regex(hsCodeRegex, "HS code must be 6-10 digits only (no periods or dashes)")
     .optional()
     .nullable(),
-  ean: z.string().max(20, "EAN/UPC must be 20 chars max").optional().nullable(),
+  ean: z
+    .string()
+    .regex(eanUpcRegex, "EAN/UPC must be 12 digits (UPC) or 13 digits (EAN)")
+    .optional()
+    .nullable(),
   pieces: z.number().int("Pieces must be a whole number").positive("Pieces must be at least 1").default(1),
   normalize: z.boolean().default(false),
   manufacturerId: z.string().optional().nullable(),
@@ -226,6 +235,21 @@ export const packageRowSchema = z.object({
     .optional()
     .nullable(),
   terminalOperator: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  // Validate that Platform ID matches the Product URL domain
+  if (data.platformId && data.productUrl) {
+    const platform = getPlatformById(data.platformId.toLowerCase());
+    if (platform) {
+      const urlLower = data.productUrl.toLowerCase();
+      if (!urlLower.includes(platform.url)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Product URL domain must match the platform "${data.platformId}". Expected URL to contain "${platform.url}"`,
+          path: ["productUrl"],
+        });
+      }
+    }
+  }
 });
 
 export type PackageRowData = z.infer<typeof packageRowSchema>;

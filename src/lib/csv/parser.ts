@@ -325,17 +325,40 @@ export function revalidateRows(
 }
 
 /**
+ * Check if a value is a placeholder or empty (for image fields)
+ */
+function isImagePlaceholderOrEmpty(value: unknown): boolean {
+  if (!value) return true;
+  const str = String(value).trim().toLowerCase();
+  return (
+    str === "" ||
+    str === "insert_base64_string_here" ||
+    str.includes("insert") ||
+    str.includes("placeholder") ||
+    str === "base64"
+  );
+}
+
+/**
  * Convert a CSV row to SafePackage API payload format
  */
 export function rowToApiPayload(row: ParsedCSVRow): PackageScreeningRequest {
   const transformed = transformRow(row);
 
-  // Collect images (base64 or URL)
+  // Collect images (base64 or URL) - filter out placeholders
   const images: string[] = [];
-  if (transformed.productImage1) images.push(String(transformed.productImage1));
-  if (transformed.productImage2) images.push(String(transformed.productImage2));
-  if (transformed.productImage3) images.push(String(transformed.productImage3));
-  if (transformed.productImageUrl) images.push(String(transformed.productImageUrl));
+  if (!isImagePlaceholderOrEmpty(transformed.productImage1)) {
+    images.push(String(transformed.productImage1));
+  }
+  if (!isImagePlaceholderOrEmpty(transformed.productImage2)) {
+    images.push(String(transformed.productImage2));
+  }
+  if (!isImagePlaceholderOrEmpty(transformed.productImage3)) {
+    images.push(String(transformed.productImage3));
+  }
+  if (!isImagePlaceholderOrEmpty(transformed.productImageUrl)) {
+    images.push(String(transformed.productImageUrl));
+  }
 
   return {
     externalId: String(transformed.externalId || ""),
@@ -408,9 +431,31 @@ export function rowsToApiPayloads(
     .map((row) => rowToApiPayload(row));
 }
 
+
 /**
  * Export rows back to CSV format
+ * Cleans up placeholder values in image columns
  */
 export function rowsToCSV(rows: ParsedCSVRow[]): string {
-  return Papa.unparse(rows);
+  // Clean up rows before export - remove placeholder values from image columns
+  const cleanedRows = rows.map((row) => {
+    const cleanedRow = { ...row };
+
+    // Clean image base64 columns - remove placeholder text
+    const imageColumns = [
+      CSV_COLUMNS.PRODUCT_IMAGE_1,
+      CSV_COLUMNS.PRODUCT_IMAGE_2,
+      CSV_COLUMNS.PRODUCT_IMAGE_3,
+    ];
+
+    for (const col of imageColumns) {
+      if (isImagePlaceholderOrEmpty(cleanedRow[col])) {
+        cleanedRow[col] = "";
+      }
+    }
+
+    return cleanedRow;
+  });
+
+  return Papa.unparse(cleanedRows);
 }

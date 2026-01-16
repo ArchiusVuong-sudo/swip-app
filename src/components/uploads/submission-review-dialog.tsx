@@ -509,13 +509,13 @@ export function SubmissionReviewDialog({
                 </Button>
               </div>
 
-              <ScrollArea className="h-[50vh]">
-                <pre className="bg-muted p-4 rounded-lg text-xs overflow-x-auto">
+              <div className="h-[50vh] border rounded-lg bg-muted overflow-auto">
+                <pre className="p-4 text-xs whitespace-pre-wrap break-all">
                   {currentPayload
                     ? JSON.stringify(currentPayload, null, 2)
                     : "No valid packages to preview"}
                 </pre>
-              </ScrollArea>
+              </div>
 
               <p className="text-xs text-muted-foreground">
                 This is the exact JSON payload that will be sent to the SafePackage API
