@@ -259,13 +259,6 @@ export default function UploadsPage() {
         return;
       }
 
-      // Log the submission review
-      await logSubmissionReview("new-upload", notes, {
-        dataReviewed: true,
-        errorsAcknowledged: !validationResult.isValid,
-        readyToSubmit: true,
-      });
-
       // Create upload record
       const { data: upload, error: uploadError } = await (supabase
         .from("uploads") as ReturnType<typeof supabase.from>)
@@ -287,6 +280,13 @@ export default function UploadsPage() {
         .single();
 
       if (uploadError) throw uploadError;
+
+      // Log the submission review with valid upload ID
+      await logSubmissionReview(upload.id, notes, {
+        dataReviewed: true,
+        errorsAcknowledged: !validationResult.isValid,
+        readyToSubmit: true,
+      });
 
       toast.success("File uploaded successfully!");
 
