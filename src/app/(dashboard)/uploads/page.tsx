@@ -11,7 +11,7 @@ import { RowEditor } from "@/components/uploads/row-editor";
 import { SubmissionReviewDialog } from "@/components/uploads/submission-review-dialog";
 import { APISubmissionDialog } from "@/components/uploads/api-submission-dialog";
 import { AuditLogViewer } from "@/components/uploads/audit-log-viewer";
-import { logRowEdit, logSubmissionReview, logAPISubmission } from "@/lib/audit/logger";
+import { logSubmissionReview, logAPISubmission } from "@/lib/audit/logger";
 import { useEnvironmentStore } from "@/stores/environment-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -179,18 +179,8 @@ export default function UploadsPage() {
 
     setValidationResult(newResult);
 
-    // Log the edit (find changed fields)
-    Object.keys(updatedRow).forEach((key) => {
-      if (oldRow[key] !== updatedRow[key]) {
-        logRowEdit(
-          "current-upload",
-          rowIndex + 1,
-          key,
-          String(oldRow[key] || ""),
-          String(updatedRow[key] || "")
-        );
-      }
-    });
+    // Note: Audit logging for pre-upload edits is skipped since no upload_id exists yet
+    // Edits made after upload is created will be logged properly
 
     // Show feedback
     if (newResult.isValid) {
@@ -233,8 +223,7 @@ export default function UploadsPage() {
 
     setValidationResult(newResult);
 
-    // Log the edit
-    logRowEdit("current-upload", rowIndex + 1, field, oldValue, value);
+    // Note: Audit logging for pre-upload edits is skipped since no upload_id exists yet
 
     // Show feedback
     if (newResult.isValid) {
