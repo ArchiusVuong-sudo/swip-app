@@ -53,7 +53,7 @@ const addressSchema = z.object({
   postalCode: z
     .string()
     .min(1, "Postal code is required")
-    .max(20, "Postal code must be 20 chars max")
+    .max(12, "Postal code must be 12 chars max")
     .regex(postalCodeRegex, "Postal code must be alphanumeric only (no hyphens or spaces)"),
   country: z.string().regex(iso3Regex, "Country must be 3-letter ISO code (e.g., USA, CHN, GBR)"),
   phone: z
@@ -150,7 +150,10 @@ export const packageRowSchema = z.object({
   shipperLine2: z.string().max(50, "Shipper address line 2 must be 50 chars max").optional().nullable(),
   shipperCity: z.string().min(1, "Shipper city is required").max(50, "Shipper city must be 50 chars max"),
   shipperState: z.string().min(1, "Shipper state is required").max(30, "Shipper state must be 30 chars max"),
-  shipperPostalCode: z.string().regex(postalCodeRegex, "Shipper postal code must be alphanumeric only (no hyphens or spaces)"),
+  shipperPostalCode: z
+    .string()
+    .max(12, "Shipper postal code must be 12 chars max")
+    .regex(postalCodeRegex, "Shipper postal code must be alphanumeric only (no hyphens or spaces)"),
   shipperCountry: z.string().regex(iso3Regex, "Shipper country must be 3-letter ISO code (e.g., USA, CHN, GBR)"),
   shipperPhone: z
     .string()
@@ -165,7 +168,10 @@ export const packageRowSchema = z.object({
   consigneeLine2: z.string().max(50, "Consignee address line 2 must be 50 chars max").optional().nullable(),
   consigneeCity: z.string().min(1, "Consignee city is required").max(50, "Consignee city must be 50 chars max"),
   consigneeState: z.string().min(1, "Consignee state is required").max(30, "Consignee state must be 30 chars max"),
-  consigneePostalCode: z.string().regex(postalCodeRegex, "Consignee postal code must be alphanumeric only (no hyphens or spaces)"),
+  consigneePostalCode: z
+    .string()
+    .max(12, "Consignee postal code must be 12 chars max")
+    .regex(postalCodeRegex, "Consignee postal code must be alphanumeric only (no hyphens or spaces)"),
   consigneeCountry: z.string().regex(iso3Regex, "Consignee country must be 3-letter ISO code (e.g., USA, CHN, GBR)"),
   consigneePhone: z
     .string()
@@ -236,6 +242,7 @@ export const packageRowSchema = z.object({
     .nullable(),
   terminalOperator: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
+<<<<<<< Updated upstream
   // Validate that Platform ID matches the Product URL domain
   // Supports regional domains like amazon.co.jp, amazon.de, etc.
   if (data.platformId && data.productUrl) {
@@ -255,6 +262,18 @@ export const packageRowSchema = z.object({
           path: ["productUrl"],
         });
       }
+=======
+  // Platform/URL domain matching validation
+  const platformId = data.platformId?.toLowerCase();
+  const platform = platformId ? getPlatformById(platformId) : null;
+  if (platform && data.productUrl) {
+    if (!data.productUrl.toLowerCase().includes(platform.url)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["productUrl"],
+        message: `Product URL domain must match the selected platform (${platform.url})`,
+      });
+>>>>>>> Stashed changes
     }
   }
 });
