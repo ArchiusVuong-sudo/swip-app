@@ -10,9 +10,8 @@ import { CSVPreview } from "@/components/uploads/csv-preview";
 import { RowEditor } from "@/components/uploads/row-editor";
 import { SubmissionReviewDialog } from "@/components/uploads/submission-review-dialog";
 import { APISubmissionDialog } from "@/components/uploads/api-submission-dialog";
-import { BulkEditor } from "@/components/uploads/bulk-editor";
 import { AuditLogViewer } from "@/components/uploads/audit-log-viewer";
-import { logRowEdit, logBulkEdit, logSubmissionReview, logAPISubmission } from "@/lib/audit/logger";
+import { logRowEdit, logSubmissionReview, logAPISubmission } from "@/lib/audit/logger";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,7 +34,6 @@ import {
   RefreshCw,
   Send,
   Eye,
-  Pencil,
   History,
 } from "lucide-react";
 
@@ -95,7 +93,6 @@ export default function UploadsPage() {
   const [showSubmissionReview, setShowSubmissionReview] = useState(false);
   const [showAPISubmissionDialog, setShowAPISubmissionDialog] = useState(false);
   const [selectedUploadForAPI, setSelectedUploadForAPI] = useState<Upload | null>(null);
-  const [showBulkEditor, setShowBulkEditor] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [auditLogUploadId, setAuditLogUploadId] = useState<string | undefined>(undefined);
 
@@ -215,18 +212,18 @@ export default function UploadsPage() {
     setEditingRowFromPreview({ rowIndex, data: rowData, errors });
   }, [validationResult]);
 
-  // Handle bulk edits
-  const handleBulkSave = useCallback(async (updates: Map<number, Record<string, string>>) => {
+  // Handle inline cell edit from CSV preview
+  const handleCellEdit = useCallback((rowIndex: number, field: string, value: string) => {
     if (!validationResult || !validationResult.rows) return;
 
-    const newRows = [...validationResult.rows];
+    const oldValue = String(validationResult.rows[rowIndex]?.[field] || "");
 
-    updates.forEach((changes, rowIndex) => {
-      newRows[rowIndex] = {
-        ...newRows[rowIndex],
-        ...changes,
-      };
-    });
+    // Update the row
+    const newRows = [...validationResult.rows];
+    newRows[rowIndex] = {
+      ...newRows[rowIndex],
+      [field]: value,
+    };
 
     // Re-validate all rows
     const headers = Object.keys(newRows[0] || {});
@@ -234,10 +231,20 @@ export default function UploadsPage() {
 
     setValidationResult(newResult);
 
-    // Log bulk edit
-    await logBulkEdit("current-upload", updates);
+    // Log the edit
+    logRowEdit("current-upload", rowIndex + 1, field, oldValue, value);
 
-    toast.success(`Updated ${updates.size} rows`);
+    // Show feedback
+    if (newResult.isValid) {
+      toast.success("All rows are now valid!");
+    } else {
+      const rowResult = newResult.results.find((r) => r.rowNumber === rowIndex + 1);
+      if (rowResult?.isValid) {
+        toast.success(`Row ${rowIndex + 1} is now valid`);
+      } else {
+        toast.info(`Field updated. ${newResult.invalidRows} rows still have errors.`);
+      }
+    }
   }, [validationResult]);
 
   // Open submission review dialog
@@ -582,24 +589,13 @@ export default function UploadsPage() {
         />
       )}
 
-      {/* CSV Preview Table with Bulk Edit Button */}
+      {/* CSV Preview Table with Inline Editing */}
       {validationResult && validationResult.rows && validationResult.rows.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowBulkEditor(true)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Bulk Edit
-            </Button>
-          </div>
-          <CSVPreview
-            result={validationResult}
-            onRowClick={handlePreviewRowClick}
-          />
-        </div>
+        <CSVPreview
+          result={validationResult}
+          onRowClick={handlePreviewRowClick}
+          onCellEdit={handleCellEdit}
+        />
       )}
 
       {/* Row Editor from Preview Click */}
@@ -670,16 +666,6 @@ export default function UploadsPage() {
           onConfirm={handleConfirmAPISubmission}
           upload={selectedUploadForAPI}
           isSubmitting={processingUploadId !== null}
-        />
-      )}
-
-      {/* Bulk Editor Dialog */}
-      {validationResult && (
-        <BulkEditor
-          isOpen={showBulkEditor}
-          onClose={() => setShowBulkEditor(false)}
-          onSave={handleBulkSave}
-          validationResult={validationResult}
         />
       )}
 

@@ -47,6 +47,7 @@ interface EnhancedRow extends Record<string, string | number | boolean | undefin
 interface CSVPreviewProps {
   result: FileValidationResult;
   onRowClick?: (rowIndex: number) => void;
+  onCellEdit?: (rowIndex: number, field: string, value: string) => void;
 }
 
 // Group columns for better organization
@@ -76,12 +77,16 @@ const columnGroups = {
 
 type ColumnGroup = keyof typeof columnGroups | "all";
 
-export function CSVPreview({ result, onRowClick }: CSVPreviewProps) {
+export function CSVPreview({ result, onRowClick, onCellEdit }: CSVPreviewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedGroup, setSelectedGroup] = useState<ColumnGroup>("all");
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+
+  // Inline editing state
+  const [editingCell, setEditingCell] = useState<{ row: number; field: string } | null>(null);
+  const [editingValue, setEditingValue] = useState<string>("");
 
   // Get all column headers
   const headers = useMemo(() => {
@@ -165,6 +170,37 @@ export function CSVPreview({ result, onRowClick }: CSVPreviewProps) {
     if (!value) return "-";
     if (value.length <= maxLength) return value;
     return value.substring(0, maxLength) + "...";
+  };
+
+  // Start editing a cell
+  const startEditing = (rowIndex: number, field: string, currentValue: string) => {
+    if (!onCellEdit) return;
+    setEditingCell({ row: rowIndex, field });
+    setEditingValue(currentValue || "");
+  };
+
+  // Save the edited value
+  const saveEdit = () => {
+    if (!editingCell || !onCellEdit) return;
+    onCellEdit(editingCell.row, editingCell.field, editingValue);
+    setEditingCell(null);
+    setEditingValue("");
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setEditingValue("");
+  };
+
+  // Handle keyboard events in edit mode
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveEdit();
+    } else if (e.key === "Escape") {
+      cancelEdit();
+    }
   };
 
   if (!result.rows || result.rows.length === 0) {
@@ -328,20 +364,37 @@ export function CSVPreview({ result, onRowClick }: CSVPreviewProps) {
                           {visibleColumns.map((col) => {
                             const cellError = getCellError(rowIndex, col);
                             const value = row[col] as string | undefined;
+                            const isEditing = editingCell?.row === rowIndex && editingCell?.field === col;
 
                             return (
                               <TableCell
                                 key={col}
-                                className={`text-xs ${cellError ? "text-red-600 font-medium" : ""}`}
+                                className={`text-xs p-1 ${cellError ? "text-red-600 font-medium" : ""}`}
                                 title={cellError ? `Error: ${cellError.message}` : value}
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <span
-                                  className={`
-                                    ${cellError ? "border-b border-dashed border-red-400" : ""}
-                                  `}
-                                >
-                                  {truncateValue(value)}
-                                </span>
+                                {isEditing ? (
+                                  <Input
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={handleEditKeyDown}
+                                    onBlur={saveEdit}
+                                    autoFocus
+                                    className="h-7 text-xs min-w-[100px]"
+                                  />
+                                ) : (
+                                  <div
+                                    onClick={() => onCellEdit && startEditing(rowIndex, col, value || "")}
+                                    className={`
+                                      ${onCellEdit ? "cursor-pointer hover:bg-muted rounded px-2 py-1" : "px-2 py-1"}
+                                      ${cellError ? "border-b border-dashed border-red-400" : ""}
+                                      min-h-[28px] flex items-center
+                                    `}
+                                    title={onCellEdit ? "Click to edit" : undefined}
+                                  >
+                                    {truncateValue(value)}
+                                  </div>
+                                )}
                               </TableCell>
                             );
                           })}

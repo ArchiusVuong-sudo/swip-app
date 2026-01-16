@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -74,6 +74,10 @@ export function BulkEditor({
     Map<number, Record<string, string>>
   >(new Map());
 
+  // Inline editing state: { rowIndex, fieldKey }
+  const [editingCell, setEditingCell] = useState<{ row: number; field: string } | null>(null);
+  const [editingValue, setEditingValue] = useState<string>("");
+
   // Get rows with errors
   const errorRowIndices = useMemo(() => {
     const indices = new Set<number>();
@@ -97,8 +101,47 @@ export function BulkEditor({
       setPendingChanges(new Map());
       setSelectedField("");
       setNewValue("");
+      setEditingCell(null);
+      setEditingValue("");
     }
   }, [isOpen, hasErrors]);
+
+  // Start inline editing a cell
+  const startEditing = (rowIndex: number, fieldKey: string) => {
+    const currentValue = getCurrentValue(rowIndex, fieldKey);
+    setEditingCell({ row: rowIndex, field: fieldKey });
+    setEditingValue(currentValue);
+  };
+
+  // Save inline edit
+  const saveInlineEdit = () => {
+    if (!editingCell) return;
+
+    const newPendingChanges = new Map(pendingChanges);
+    const existing = newPendingChanges.get(editingCell.row) || {};
+    newPendingChanges.set(editingCell.row, {
+      ...existing,
+      [editingCell.field]: editingValue,
+    });
+    setPendingChanges(newPendingChanges);
+    setEditingCell(null);
+    setEditingValue("");
+  };
+
+  // Cancel inline edit
+  const cancelInlineEdit = () => {
+    setEditingCell(null);
+    setEditingValue("");
+  };
+
+  // Handle key press in inline edit
+  const handleInlineKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      saveInlineEdit();
+    } else if (e.key === "Escape") {
+      cancelInlineEdit();
+    }
+  };
 
   // Filter rows based on showOnlyErrors
   const displayRows = useMemo(() => {
@@ -198,18 +241,18 @@ export function BulkEditor({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh]">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5" />
             Bulk Edit Rows
           </DialogTitle>
           <DialogDescription>
-            Select rows and apply changes to multiple fields at once.
+            Click on any cell to edit directly, or select rows and apply bulk changes.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-hidden">
           {/* Controls */}
           <div className="flex flex-wrap items-end gap-4 p-4 bg-muted/50 rounded-lg">
             <div className="flex-1 min-w-[200px]">
@@ -303,8 +346,9 @@ export function BulkEditor({
           )}
 
           {/* Table */}
-          <ScrollArea className="h-[400px] border rounded-lg">
-            <Table>
+          <div className="border rounded-lg">
+            <ScrollArea className="h-[400px] w-full">
+                <Table className="w-full">
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="w-[50px] sticky left-0 bg-muted/50">
@@ -388,19 +432,37 @@ export function BulkEditor({
                             .get(index)
                             ?.hasOwnProperty(field.key);
                           const fieldHasError = hasFieldError(index, field.key);
+                          const isEditing = editingCell?.row === index && editingCell?.field === field.key;
 
                           return (
                             <TableCell
                               key={field.key}
-                              className={`text-xs ${
+                              className={`text-xs p-1 ${
                                 fieldHasError ? "text-red-600" : ""
                               } ${isPending ? "font-medium text-blue-600" : ""}`}
                             >
-                              {currentValue || "-"}
-                              {isPending && (
-                                <span className="text-xs text-blue-400 ml-1">
-                                  (changed)
-                                </span>
+                              {isEditing ? (
+                                <Input
+                                  value={editingValue}
+                                  onChange={(e) => setEditingValue(e.target.value)}
+                                  onKeyDown={handleInlineKeyDown}
+                                  onBlur={saveInlineEdit}
+                                  autoFocus
+                                  className="h-7 text-xs min-w-[100px]"
+                                />
+                              ) : (
+                                <div
+                                  onClick={() => startEditing(index, field.key)}
+                                  className={`cursor-pointer hover:bg-muted/50 rounded px-2 py-1 min-h-[28px] flex items-center ${
+                                    isPending ? "bg-blue-100" : ""
+                                  }`}
+                                  title="Click to edit"
+                                >
+                                  {currentValue || <span className="text-muted-foreground">-</span>}
+                                  {isPending && (
+                                    <Pencil className="h-3 w-3 ml-1 text-blue-400" />
+                                  )}
+                                </div>
                               )}
                             </TableCell>
                           );
@@ -410,8 +472,10 @@ export function BulkEditor({
                   })
                 )}
               </TableBody>
-            </Table>
-          </ScrollArea>
+                </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
