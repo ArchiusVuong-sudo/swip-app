@@ -28,9 +28,11 @@ import {
   Plus,
   FileCheck,
   Download,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { CreateShipmentDialog } from "./create-shipment-dialog";
+import { UploadShipmentCSVDialog } from "./upload-shipment-csv-dialog";
 
 interface Shipment {
   id: string;
@@ -63,6 +65,7 @@ const statusConfig = {
 export function ShipmentsClient({ shipments }: ShipmentsClientProps) {
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   const handleSuccess = () => {
     router.refresh();
@@ -78,10 +81,16 @@ export function ShipmentsClient({ shipments }: ShipmentsClientProps) {
             Register and manage your shipment consolidations.
           </p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Shipment
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload CSV
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Shipment
+          </Button>
+        </div>
       </div>
 
       {/* Shipments Table */}
@@ -174,6 +183,13 @@ export function ShipmentsClient({ shipments }: ShipmentsClientProps) {
       <CreateShipmentDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
+        onSuccess={handleSuccess}
+      />
+
+      {/* Upload Shipment CSV Dialog */}
+      <UploadShipmentCSVDialog
+        isOpen={isUploadDialogOpen}
+        onClose={() => setIsUploadDialogOpen(false)}
         onSuccess={handleSuccess}
       />
     </div>
