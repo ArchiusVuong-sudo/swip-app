@@ -33,54 +33,40 @@ export function generateCommercialInvoice(
     carrier = "",
   } = options;
 
-  // Get shipper and consignee info from first row
+  // Get shipper info from first row
   const firstRow = rows[0];
-  const shipperAddress = [
-    firstRow[CSV_COLUMNS.SHIPPER_NAME],
-    firstRow[CSV_COLUMNS.SHIPPER_ADDRESS_1],
-    firstRow[CSV_COLUMNS.SHIPPER_ADDRESS_2],
-    [
-      firstRow[CSV_COLUMNS.SHIPPER_CITY],
-      firstRow[CSV_COLUMNS.SHIPPER_STATE],
-      firstRow[CSV_COLUMNS.SHIPPER_POSTAL_CODE],
-    ]
-      .filter(Boolean)
-      .join(", "),
-    firstRow[CSV_COLUMNS.SHIPPER_COUNTRY],
-  ]
-    .filter(Boolean)
-    .join(", ");
 
-  const consigneeAddress = [
-    firstRow[CSV_COLUMNS.CONSIGNEE_NAME],
-    firstRow[CSV_COLUMNS.CONSIGNEE_ADDRESS_1],
-    firstRow[CSV_COLUMNS.CONSIGNEE_ADDRESS_2],
-    [
-      firstRow[CSV_COLUMNS.CONSIGNEE_CITY],
-      firstRow[CSV_COLUMNS.CONSIGNEE_STATE],
-      firstRow[CSV_COLUMNS.CONSIGNEE_POSTAL_CODE],
-    ]
-      .filter(Boolean)
-      .join(", "),
-    firstRow[CSV_COLUMNS.CONSIGNEE_COUNTRY],
-  ]
-    .filter(Boolean)
-    .join(", ");
+  // Get last consignee (for the invoice header, use last row's consignee as primary)
+  const lastRow = rows[rows.length - 1];
 
-  // Build header section
-  const headerRows = [
+  // Build header section - matching the template format exactly
+  const headerRows: string[][] = [
+    // Title
+    ["COMMERCIAL INVOICE", "", "", "", "", "", "", "", ""],
     ["", "", "", "", "", "", "", "", ""],
-    ["Document Type", "PROFORMA INVOICE", "", "", "", "", "", "", ""],
-    ["Invoice Number", invoiceNumber, "", "", "", "", "", "", ""],
-    ["Date", date, "", "", "", "", "", "", ""],
-    ["Incoterms", incoterms, "", "", "", "", "", "", ""],
-    ["Currency", currency, "", "", "", "", "", "", ""],
-    ["MAWB Number", mawbNumber, "", "", "", "", "", "", ""],
-    ["Carrier", carrier, "", "", "", "", "", "", ""],
-    ["SHIPPER (Exporter)", shipperAddress, "", "", "", "", "", "", ""],
+    // Invoice details
+    ["Invoice Number:", invoiceNumber, "", "", "", "", "", "", ""],
+    ["Invoice Date:", date, "", "", "", "", "", "", ""],
+    ["Terms of Sale:", incoterms, "", "", "", "", "", "", ""],
+    ["Currency:", currency, "", "", "", "", "", "", ""],
+    ...(mawbNumber ? [["MAWB Number:", mawbNumber, "", "", "", "", "", "", ""]] : []),
+    ...(carrier ? [["Carrier:", carrier, "", "", "", "", "", "", ""]] : []),
+    ["", "", "", "", "", "", "", "", ""],
+    // Shipper section
+    ["SHIPPER/EXPORTER:", "", "", "", "", "", "", "", ""],
+    [String(firstRow[CSV_COLUMNS.SHIPPER_NAME] || ""), "", "", "", "", "", "", "", ""],
+    [String(firstRow[CSV_COLUMNS.SHIPPER_ADDRESS_1] || ""), "", "", "", "", "", "", "", ""],
+    ...(firstRow[CSV_COLUMNS.SHIPPER_ADDRESS_2] ? [[String(firstRow[CSV_COLUMNS.SHIPPER_ADDRESS_2]), "", "", "", "", "", "", "", ""]] : []),
+    ["", "", "", "", "", "", "", "", ""],
     [
-      "Shipper Phone",
-      firstRow[CSV_COLUMNS.SHIPPER_PHONE] || "",
+      [
+        firstRow[CSV_COLUMNS.SHIPPER_CITY],
+        firstRow[CSV_COLUMNS.SHIPPER_STATE],
+        firstRow[CSV_COLUMNS.SHIPPER_POSTAL_CODE],
+      ]
+        .filter(Boolean)
+        .join(", "),
+      "",
       "",
       "",
       "",
@@ -89,10 +75,24 @@ export function generateCommercialInvoice(
       "",
       "",
     ],
-    ["Consigned To:", consigneeAddress, "", "", "", "", "", "", ""],
+    [String(firstRow[CSV_COLUMNS.SHIPPER_COUNTRY] || ""), "", "", "", "", "", "", "", ""],
+    [String(firstRow[CSV_COLUMNS.SHIPPER_PHONE] || ""), "", "", "", "", "", "", "", ""],
+    ["", "", "", "", "", "", "", "", ""],
+    // Consignee section
+    ["CONSIGNEE/IMPORTER:", "", "", "", "", "", "", "", ""],
+    [String(lastRow[CSV_COLUMNS.CONSIGNEE_NAME] || ""), "", "", "", "", "", "", "", ""],
+    [String(lastRow[CSV_COLUMNS.CONSIGNEE_ADDRESS_1] || ""), "", "", "", "", "", "", "", ""],
+    ...(lastRow[CSV_COLUMNS.CONSIGNEE_ADDRESS_2] ? [[String(lastRow[CSV_COLUMNS.CONSIGNEE_ADDRESS_2]), "", "", "", "", "", "", "", ""]] : []),
+    ["", "", "", "", "", "", "", "", ""],
     [
-      "Consignee Phone",
-      firstRow[CSV_COLUMNS.CONSIGNEE_PHONE] || "",
+      [
+        lastRow[CSV_COLUMNS.CONSIGNEE_CITY],
+        lastRow[CSV_COLUMNS.CONSIGNEE_STATE],
+        lastRow[CSV_COLUMNS.CONSIGNEE_POSTAL_CODE],
+      ]
+        .filter(Boolean)
+        .join(", "),
+      "",
       "",
       "",
       "",
@@ -101,8 +101,10 @@ export function generateCommercialInvoice(
       "",
       "",
     ],
-    ["SHIP TO (Destination)", consigneeAddress, "", "", "", "", "", "", ""],
+    [String(lastRow[CSV_COLUMNS.CONSIGNEE_COUNTRY] || ""), "", "", "", "", "", "", "", ""],
+    [String(lastRow[CSV_COLUMNS.CONSIGNEE_PHONE] || ""), "", "", "", "", "", "", "", ""],
     ["", "", "", "", "", "", "", "", ""],
+    // Line items header
     ["LINE ITEMS", "", "", "", "", "", "", "", ""],
     [
       "Item #",
@@ -130,7 +132,11 @@ export function generateCommercialInvoice(
 
     const startItem = runningItemCount + 1;
     const endItem = runningItemCount + quantity;
-    const itemRange = quantity > 1 ? `${startItem}-${endItem}` : String(startItem);
+    const itemRange = quantity > 1 ? `${startItem} - ${endItem}` : String(startItem);
+
+    // Extract material from description if possible
+    const description = String(row[CSV_COLUMNS.PRODUCT_DESCRIPTION] || "");
+    const material = extractMaterial(description);
 
     lineItems.push([
       itemRange,
@@ -138,7 +144,7 @@ export function generateCommercialInvoice(
       String(row[CSV_COLUMNS.PRODUCT_DECLARED_NAME] || row[CSV_COLUMNS.PRODUCT_NAME] || ""),
       String(row[CSV_COLUMNS.HS_CODE] || ""),
       String(row[CSV_COLUMNS.ORIGIN_COUNTRY] || ""),
-      String(row[CSV_COLUMNS.PRODUCT_DESCRIPTION] || "").substring(0, 100),
+      material,
       String(quantity),
       unitPrice.toFixed(2),
       totalValue.toFixed(2),
@@ -158,6 +164,29 @@ export function generateCommercialInvoice(
   return Papa.unparse(allRows, {
     quotes: true,
   });
+}
+
+/**
+ * Extract material from product description
+ */
+function extractMaterial(description: string): string {
+  const lowerDesc = description.toLowerCase();
+
+  // Common materials to detect
+  const materials = [
+    "paper", "plastic", "pvc", "vinyl", "cotton", "polyester",
+    "metal", "aluminum", "steel", "wood", "leather", "rubber",
+    "glass", "ceramic", "porcelain", "fabric", "textile", "silk",
+    "nylon", "acrylic", "foam", "cardboard"
+  ];
+
+  for (const material of materials) {
+    if (lowerDesc.includes(material)) {
+      return material.charAt(0).toUpperCase() + material.slice(1);
+    }
+  }
+
+  return "";
 }
 
 /**
