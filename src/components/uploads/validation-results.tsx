@@ -24,7 +24,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RowEditor } from "./row-editor";
+import { InlineRowEditor } from "./inline-row-editor";
 import type { FileValidationResult, RowValidationResult } from "@/lib/validation/schemas";
 
 interface RowData {
@@ -38,11 +38,32 @@ interface ValidationResultsProps {
 
 interface RowErrorsProps {
   row: RowValidationResult;
+  isEditing: boolean;
   onEdit?: () => void;
+  onSave?: (rowIndex: number, updatedRow: RowData) => void;
+  onCancel?: () => void;
+  rowData?: RowData;
 }
 
-function RowErrors({ row, onEdit }: RowErrorsProps) {
+function RowErrors({ row, isEditing, onEdit, onSave, onCancel, rowData }: RowErrorsProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  if (isEditing && rowData && onSave && onCancel) {
+    return (
+      <div className="p-2">
+        <InlineRowEditor
+          row={rowData}
+          rowIndex={row.rowNumber - 1}
+          onSave={onSave}
+          onCancel={onCancel}
+          errors={row.errors.map((e) => ({
+            field: e.field,
+            message: e.message,
+          }))}
+        />
+      </div>
+    );
+  }
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -107,27 +128,21 @@ function RowErrors({ row, onEdit }: RowErrorsProps) {
 
 export function ValidationResults({ result, onRowUpdate }: ValidationResultsProps) {
   const invalidRows = result.results.filter((r) => !r.isValid);
-  const [editingRow, setEditingRow] = useState<{
-    rowIndex: number;
-    data: RowData;
-    errors: Array<{ field: string; message: string }>;
-  } | null>(null);
+  const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
 
   const handleEditRow = (row: RowValidationResult) => {
-    const rowIndex = row.rowNumber - 1;
-    const rowData = result.rows?.[rowIndex] || {};
-    const errors = row.errors.map((e) => ({
-      field: e.field,
-      message: e.message,
-    }));
-    setEditingRow({ rowIndex, data: rowData, errors });
+    setEditingRowIndex(row.rowNumber - 1);
   };
 
   const handleSaveRow = (rowIndex: number, updatedRow: RowData) => {
     if (onRowUpdate) {
       onRowUpdate(rowIndex, updatedRow);
     }
-    setEditingRow(null);
+    setEditingRowIndex(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRowIndex(null);
   };
 
   return (
@@ -206,7 +221,7 @@ export function ValidationResults({ result, onRowUpdate }: ValidationResultsProp
                     Validation errors found
                   </p>
                   <p className="text-sm text-red-600">
-                    Please fix the errors below before processing.
+                    Please fix the errors below before processing. Click &quot;Edit&quot; to make inline changes.
                   </p>
                 </div>
               </div>
@@ -215,32 +230,30 @@ export function ValidationResults({ result, onRowUpdate }: ValidationResultsProp
             {/* Error Details */}
             {invalidRows.length > 0 && (
               <div className="border rounded-lg">
-                <ScrollArea className="h-[300px]">
+                <ScrollArea className={editingRowIndex !== null ? "max-h-[600px]" : "h-[300px]"}>
                   <div className="divide-y">
-                    {invalidRows.map((row) => (
-                      <RowErrors
-                        key={row.rowNumber}
-                        row={row}
-                        onEdit={onRowUpdate ? () => handleEditRow(row) : undefined}
-                      />
-                    ))}
+                    {invalidRows.map((row) => {
+                      const rowIndex = row.rowNumber - 1;
+                      const isEditing = editingRowIndex === rowIndex;
+                      const rowData = result.rows?.[rowIndex] || {};
+
+                      return (
+                        <RowErrors
+                          key={row.rowNumber}
+                          row={row}
+                          isEditing={isEditing}
+                          onEdit={onRowUpdate ? () => handleEditRow(row) : undefined}
+                          onSave={handleSaveRow}
+                          onCancel={handleCancelEdit}
+                          rowData={rowData}
+                        />
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>
             )}
           </div>
-        )}
-
-        {/* Row Editor Dialog */}
-        {editingRow && (
-          <RowEditor
-            row={editingRow.data}
-            rowIndex={editingRow.rowIndex}
-            isOpen={true}
-            onClose={() => setEditingRow(null)}
-            onSave={handleSaveRow}
-            errors={editingRow.errors}
-          />
         )}
       </CardContent>
     </Card>
