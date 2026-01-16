@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { CSV_COLUMNS, REQUIRED_COLUMNS } from "./constants";
+import { fetchImageAsBase64 } from "@/lib/utils/image";
 import {
   packageRowSchema,
   sanitizePhone,
@@ -458,4 +459,85 @@ export function rowsToCSV(rows: ParsedCSVRow[]): string {
   });
 
   return Papa.unparse(cleanedRows);
+}
+
+/**
+ * Check if a string is a URL
+ */
+function isUrl(str: string): boolean {
+  return str.startsWith("http://") || str.startsWith("https://");
+}
+
+/**
+ * Export rows back to CSV format with base64 images
+ * Fetches images from URLs and converts them to base64
+ * @param rows - Array of parsed CSV rows
+ * @param onProgress - Optional callback for progress updates (index, total, message)
+ * @returns CSV string with base64 encoded images
+ */
+export async function rowsToCSVWithImages(
+  rows: ParsedCSVRow[],
+  onProgress?: (index: number, total: number, message: string) => void
+): Promise<string> {
+  const processedRows: ParsedCSVRow[] = [];
+
+  const imageColumns = [
+    CSV_COLUMNS.PRODUCT_IMAGE_1,
+    CSV_COLUMNS.PRODUCT_IMAGE_2,
+    CSV_COLUMNS.PRODUCT_IMAGE_3,
+  ];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const processedRow = { ...row };
+
+    onProgress?.(i + 1, rows.length, `Processing row ${i + 1} of ${rows.length}...`);
+
+    // Process image columns
+    for (const col of imageColumns) {
+      const value = processedRow[col];
+
+      if (isImagePlaceholderOrEmpty(value)) {
+        processedRow[col] = "";
+        continue;
+      }
+
+      // If it's a URL, fetch and convert to base64
+      if (value && isUrl(value)) {
+        onProgress?.(i + 1, rows.length, `Fetching image from ${value.substring(0, 50)}...`);
+        const base64 = await fetchImageAsBase64(value, {
+          maxRetries: 2,
+          timeoutMs: 15000,
+        });
+        processedRow[col] = base64 || "";
+      }
+    }
+
+    // Also process the Product Image URL column if it exists
+    const imageUrlCol = CSV_COLUMNS.PRODUCT_IMAGE_URL;
+    const imageUrlValue = processedRow[imageUrlCol];
+
+    if (imageUrlValue && isUrl(imageUrlValue)) {
+      onProgress?.(i + 1, rows.length, `Fetching image from ${imageUrlValue.substring(0, 50)}...`);
+      const base64 = await fetchImageAsBase64(imageUrlValue, {
+        maxRetries: 2,
+        timeoutMs: 15000,
+      });
+
+      // Put the base64 in the first available image column
+      if (base64) {
+        if (!processedRow[CSV_COLUMNS.PRODUCT_IMAGE_1]) {
+          processedRow[CSV_COLUMNS.PRODUCT_IMAGE_1] = base64;
+        } else if (!processedRow[CSV_COLUMNS.PRODUCT_IMAGE_2]) {
+          processedRow[CSV_COLUMNS.PRODUCT_IMAGE_2] = base64;
+        } else if (!processedRow[CSV_COLUMNS.PRODUCT_IMAGE_3]) {
+          processedRow[CSV_COLUMNS.PRODUCT_IMAGE_3] = base64;
+        }
+      }
+    }
+
+    processedRows.push(processedRow);
+  }
+
+  return Papa.unparse(processedRows);
 }

@@ -47,7 +47,9 @@ import {
 } from "lucide-react";
 import type { FileValidationResult } from "@/lib/validation/schemas";
 import { CSV_COLUMNS } from "@/lib/csv/constants";
-import { rowsToApiPayloads, rowsToCSV, type ParsedCSVRow } from "@/lib/csv/parser";
+import { rowsToApiPayloads, rowsToCSVWithImages, type ParsedCSVRow } from "@/lib/csv/parser";
+import { processPayloadsWithImages } from "@/lib/utils/image";
+import type { PackageScreeningRequest } from "@/lib/safepackage/types";
 
 interface SubmissionReviewDialogProps {
   isOpen: boolean;
@@ -75,6 +77,8 @@ export function SubmissionReviewDialog({
   const [activeTab, setActiveTab] = useState("review");
   const [copiedJson, setCopiedJson] = useState(false);
   const [previewRowIndex, setPreviewRowIndex] = useState(0);
+  const [isProcessingImages, setIsProcessingImages] = useState(false);
+  const [imageProcessingProgress, setImageProcessingProgress] = useState("");
 
   const allConfirmed =
     confirmations.dataReviewed &&
@@ -103,33 +107,69 @@ export function SubmissionReviewDialog({
   // Get current preview payload
   const currentPayload = apiPayloads[previewRowIndex] || null;
 
-  // Download CSV
-  const handleDownloadCSV = () => {
+  // Download CSV with base64 images (fetches images from URLs and converts to base64)
+  const handleDownloadCSV = async () => {
     if (!validationResult.rows) return;
-    const csvContent = rowsToCSV(validationResult.rows as ParsedCSVRow[]);
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `validated_${fileName}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+
+    setIsProcessingImages(true);
+    setImageProcessingProgress("Starting CSV image processing...");
+
+    try {
+      const csvContent = await rowsToCSVWithImages(
+        validationResult.rows as ParsedCSVRow[],
+        (index, total, message) => {
+          setImageProcessingProgress(`Row ${index}/${total}: ${message}`);
+        }
+      );
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `validated_${fileName}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error processing images for CSV download:", error);
+    } finally {
+      setIsProcessingImages(false);
+      setImageProcessingProgress("");
+    }
   };
 
-  // Download JSON
-  const handleDownloadJSON = () => {
-    const jsonContent = JSON.stringify(apiPayloads, null, 2);
-    const blob = new Blob([jsonContent], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `api_payload_${fileName.replace(".csv", ".json")}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  // Download JSON with base64 images (fetches images from URLs and converts to base64)
+  const handleDownloadJSON = async () => {
+    if (apiPayloads.length === 0) return;
+
+    setIsProcessingImages(true);
+    setImageProcessingProgress("Starting image processing...");
+
+    try {
+      // Process payloads to convert image URLs to base64
+      const processedPayloads = await processPayloadsWithImages(
+        apiPayloads as PackageScreeningRequest[],
+        (index, total, message) => {
+          setImageProcessingProgress(`Package ${index}/${total}: ${message}`);
+        }
+      );
+
+      const jsonContent = JSON.stringify(processedPayloads, null, 2);
+      const blob = new Blob([jsonContent], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `api_payload_${fileName.replace(".csv", ".json")}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error processing images for download:", error);
+    } finally {
+      setIsProcessingImages(false);
+      setImageProcessingProgress("");
+    }
   };
 
   // Copy JSON to clipboard
@@ -540,9 +580,9 @@ export function SubmissionReviewDialog({
                         <FileText className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <h4 className="font-medium">CSV File</h4>
+                        <h4 className="font-medium">CSV File (with Base64 Images)</h4>
                         <p className="text-xs text-muted-foreground">
-                          Edited data in original CSV format
+                          Edited data with images converted to base64
                         </p>
                       </div>
                     </div>
@@ -550,10 +590,25 @@ export function SubmissionReviewDialog({
                       variant="outline"
                       className="w-full"
                       onClick={handleDownloadCSV}
+                      disabled={isProcessingImages}
                     >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download CSV
+                      {isProcessingImages ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download CSV
+                        </>
+                      )}
                     </Button>
+                    {isProcessingImages && imageProcessingProgress && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        {imageProcessingProgress}
+                      </p>
+                    )}
                   </div>
 
                   {/* Download JSON */}
@@ -563,7 +618,7 @@ export function SubmissionReviewDialog({
                         <Code className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-medium">JSON Payloads</h4>
+                        <h4 className="font-medium">JSON Payloads (with Base64 Images)</h4>
                         <p className="text-xs text-muted-foreground">
                           API-ready format ({apiPayloads.length} packages)
                         </p>
@@ -573,11 +628,25 @@ export function SubmissionReviewDialog({
                       variant="outline"
                       className="w-full"
                       onClick={handleDownloadJSON}
-                      disabled={apiPayloads.length === 0}
+                      disabled={apiPayloads.length === 0 || isProcessingImages}
                     >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download JSON
+                      {isProcessingImages ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download JSON
+                        </>
+                      )}
                     </Button>
+                    {isProcessingImages && imageProcessingProgress && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        {imageProcessingProgress}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

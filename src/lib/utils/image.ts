@@ -10,6 +10,31 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Check if running in browser environment
+ */
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
+/**
+ * Convert ArrayBuffer to Base64 (works in both browser and Node.js)
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (isBrowser()) {
+    // Browser: use btoa
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  } else {
+    // Node.js: use Buffer
+    return Buffer.from(buffer).toString("base64");
+  }
+}
+
+/**
  * Fetch an image from a URL and convert it to Base64 with retry logic
  * @param url - The URL of the image to fetch
  * @param options - Retry options
@@ -77,7 +102,7 @@ export async function fetchImageAsBase64(
         }
 
         const arrayBuffer = await response.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString("base64");
+        const base64 = arrayBufferToBase64(arrayBuffer);
 
         return base64;
       } finally {
@@ -176,4 +201,81 @@ export async function processProductImages(
   }
 
   return results;
+}
+
+/**
+ * Check if a string is a URL
+ */
+function isUrl(str: string): boolean {
+  return str.startsWith("http://") || str.startsWith("https://");
+}
+
+/**
+ * Process a single API payload to convert image URLs to base64
+ * @param payload - The package screening request payload
+ * @param onProgress - Optional callback for progress updates
+ * @returns The payload with images converted to base64
+ */
+export async function processPayloadImages<T extends { products: Array<{ product: { images?: string[] } }> }>(
+  payload: T,
+  onProgress?: (message: string) => void
+): Promise<T> {
+  const processedPayload = JSON.parse(JSON.stringify(payload)) as T;
+
+  for (const packageProduct of processedPayload.products) {
+    if (!packageProduct.product.images || packageProduct.product.images.length === 0) {
+      continue;
+    }
+
+    const processedImages: string[] = [];
+
+    for (const image of packageProduct.product.images) {
+      if (!image || image.trim() === "") {
+        continue;
+      }
+
+      if (isUrl(image)) {
+        onProgress?.(`Fetching image from ${image.substring(0, 50)}...`);
+        const base64 = await fetchImageAsBase64(image, {
+          maxRetries: 2,
+          timeoutMs: 15000,
+        });
+        if (base64) {
+          processedImages.push(base64);
+        }
+      } else if (image.length > 100) {
+        // Already base64 and looks valid
+        processedImages.push(image);
+      }
+    }
+
+    packageProduct.product.images = processedImages;
+  }
+
+  return processedPayload;
+}
+
+/**
+ * Process multiple API payloads to convert image URLs to base64
+ * @param payloads - Array of package screening request payloads
+ * @param onProgress - Optional callback for progress updates (index, total, message)
+ * @returns Array of payloads with images converted to base64
+ */
+export async function processPayloadsWithImages<T extends { products: Array<{ product: { images?: string[] } }> }>(
+  payloads: T[],
+  onProgress?: (index: number, total: number, message: string) => void
+): Promise<T[]> {
+  const processedPayloads: T[] = [];
+
+  for (let i = 0; i < payloads.length; i++) {
+    onProgress?.(i + 1, payloads.length, `Processing package ${i + 1} of ${payloads.length}...`);
+
+    const processed = await processPayloadImages(payloads[i], (msg) => {
+      onProgress?.(i + 1, payloads.length, msg);
+    });
+
+    processedPayloads.push(processed);
+  }
+
+  return processedPayloads;
 }
