@@ -69,6 +69,12 @@ export default async function PackagesPage() {
           {packages.length > 0 && (
             <>
               <Button variant="outline" asChild>
+                <a href="/api/exports/shipment-register">
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Download CSV
+                </a>
+              </Button>
+              <Button variant="outline" asChild>
                 <a href="/api/exports/commercial-invoice">
                   <FileSpreadsheet className="mr-2 h-4 w-4" />
                   Commercial Invoice
