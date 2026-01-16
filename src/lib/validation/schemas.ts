@@ -242,7 +242,6 @@ export const packageRowSchema = z.object({
     .nullable(),
   terminalOperator: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-<<<<<<< Updated upstream
   // Validate that Platform ID matches the Product URL domain
   // Supports regional domains like amazon.co.jp, amazon.de, etc.
   if (data.platformId && data.productUrl) {
@@ -253,8 +252,8 @@ export const packageRowSchema = z.object({
       // This handles amazon.com, amazon.co.jp, amazon.de, etc.
       const platformBase = platform.id.toLowerCase();
       const urlContainsPlatform = urlLower.includes(`${platformBase}.`) ||
-                                   urlLower.includes(`//${platformBase}/`) ||
-                                   urlLower.includes(`.${platformBase}.`);
+        urlLower.includes(`//${platformBase}/`) ||
+        urlLower.includes(`.${platformBase}.`);
       if (!urlContainsPlatform) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -262,18 +261,6 @@ export const packageRowSchema = z.object({
           path: ["productUrl"],
         });
       }
-=======
-  // Platform/URL domain matching validation
-  const platformId = data.platformId?.toLowerCase();
-  const platform = platformId ? getPlatformById(platformId) : null;
-  if (platform && data.productUrl) {
-    if (!data.productUrl.toLowerCase().includes(platform.url)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["productUrl"],
-        message: `Product URL domain must match the selected platform (${platform.url})`,
-      });
->>>>>>> Stashed changes
     }
   }
 });
