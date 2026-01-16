@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useEnvironmentStore } from "@/stores/environment-store";
 import type { User } from "@supabase/supabase-js";
 
 export function Header() {
   const [user, setUser] = useState<User | null>(null);
+  const { environment } = useEnvironmentStore();
 
   useEffect(() => {
     const supabase = createClient();
@@ -24,10 +26,11 @@ export function Header() {
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
       <div className="flex items-center gap-4">
         <h1 className="text-lg font-semibold">SafePackage Dashboard</h1>
-        <Badge variant="outline" className="text-xs">
-          {process.env.NEXT_PUBLIC_SAFEPACKAGE_ENVIRONMENT === "production"
-            ? "Production"
-            : "Sandbox"}
+        <Badge
+          variant={environment === "production" ? "destructive" : "secondary"}
+          className="text-xs"
+        >
+          {environment === "production" ? "Production" : "Sandbox"}
         </Badge>
       </div>
 

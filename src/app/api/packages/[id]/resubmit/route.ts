@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { SafePackageClient } from "@/lib/safepackage/client";
+import { getSafePackageClient, type Environment } from "@/lib/safepackage/client";
 import type { Package, ApiConfiguration, Product, PackageProduct } from "@/types/database";
 
 // Type for package with products joined
@@ -19,7 +19,8 @@ export async function POST(
   try {
     const { id: packageId } = await params;
     const body = await request.json();
-    const { corrections, notes } = body;
+    const { corrections, notes, environment: envFromBody } = body;
+    const environment = (envFromBody as Environment) || "sandbox";
 
     const supabase = await createClient();
     const {
@@ -109,33 +110,9 @@ export async function POST(
       notes,
     } as Record<string, unknown>);
 
-    // Get API configuration
-    const { data: configData, error: configError } = await supabase
-      .from("api_configurations")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .single();
-
-    if (configError || !configData) {
-      // Package updated but not resubmitted to API yet
-      return NextResponse.json({
-        success: true,
-        message: "Package updated. Please configure API settings to resubmit.",
-        packageId,
-        status: "pending",
-        requiresApiConfig: true,
-      });
-    }
-
-    const apiConfig = configData as ApiConfiguration;
-
     // Resubmit to SafePackage API
     try {
-      const safePackageClient = new SafePackageClient(
-        apiConfig.base_url,
-        apiConfig.api_key
-      );
+      const safePackageClient = getSafePackageClient(environment);
 
       // Build products array from package_products in the format expected by SafePackage API
       // PackageProduct expects: { quantity, unit?, declaredValue, declaredName?, product: { sku, url, name, ... } }

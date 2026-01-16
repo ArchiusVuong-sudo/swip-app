@@ -12,6 +12,7 @@ import { SubmissionReviewDialog } from "@/components/uploads/submission-review-d
 import { APISubmissionDialog } from "@/components/uploads/api-submission-dialog";
 import { AuditLogViewer } from "@/components/uploads/audit-log-viewer";
 import { logRowEdit, logSubmissionReview, logAPISubmission } from "@/lib/audit/logger";
+import { useEnvironmentStore } from "@/stores/environment-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -72,6 +73,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 
 export default function UploadsPage() {
   const router = useRouter();
+  const { environment } = useEnvironmentStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [validationResult, setValidationResult] =
     useState<FileValidationResult | null>(null);
@@ -346,7 +348,7 @@ export default function UploadsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ submissionNotes: notes }),
+        body: JSON.stringify({ submissionNotes: notes, environment }),
       });
 
       const data = await response.json();

@@ -1,9 +1,13 @@
-import { NextResponse } from "next/server";
-import { getSafePackageClient } from "@/lib/safepackage/client";
+import { NextRequest, NextResponse } from "next/server";
+import { getSafePackageClient, type Environment } from "@/lib/safepackage/client";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const client = getSafePackageClient();
+    // Get environment from query params
+    const searchParams = request.nextUrl.searchParams;
+    const environment = (searchParams.get("environment") as Environment) || "sandbox";
+
+    const client = getSafePackageClient(environment);
     const result = await client.getPlatforms();
 
     if (!result.success) {

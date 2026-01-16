@@ -16,13 +16,34 @@ import type {
   SafePackageError,
 } from "./types";
 
+export type Environment = "sandbox" | "production";
+
+// API credentials for each environment
+export const ENVIRONMENT_CONFIG = {
+  sandbox: {
+    baseUrl: "https://sandbox.safepackage.com",
+    apiKey: "qmHpZv4dDPBqYOtnMfdv5H3SXAiUYRRCGHsOeDV3paQ1WdqET6RbytnCB0Sa14LR",
+  },
+  production: {
+    baseUrl: "https://api.safepackage.com",
+    apiKey: "KYBty0Gp8c9EwGbEvz32OXxYA76NEosvGSYPuqG6KeCKsBfBAxqIEKVDkusjkoXj",
+  },
+};
+
 export class SafePackageClient {
   private baseUrl: string;
   private apiKey: string;
+  private environment: Environment;
 
-  constructor(baseUrl?: string, apiKey?: string) {
-    this.baseUrl = baseUrl || process.env.SAFEPACKAGE_API_URL!;
-    this.apiKey = apiKey || process.env.SAFEPACKAGE_API_KEY!;
+  constructor(environment?: Environment, baseUrl?: string, apiKey?: string) {
+    // Determine environment
+    this.environment = environment || (process.env.NEXT_PUBLIC_SAFEPACKAGE_ENVIRONMENT as Environment) || "sandbox";
+
+    // Get config for the environment
+    const envConfig = ENVIRONMENT_CONFIG[this.environment];
+
+    this.baseUrl = baseUrl || envConfig.baseUrl;
+    this.apiKey = apiKey || envConfig.apiKey;
 
     if (!this.baseUrl || !this.apiKey) {
       throw new Error("SafePackage API URL and API Key are required");
@@ -34,6 +55,10 @@ export class SafePackageClient {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
       console.warn("SafePackage: Disabled TLS verification for sandbox environment");
     }
+  }
+
+  getEnvironment(): Environment {
+    return this.environment;
   }
 
   private async request<T>(
@@ -184,12 +209,22 @@ export class SafePackageClient {
   }
 }
 
-// Singleton instance for server-side usage
-let clientInstance: SafePackageClient | null = null;
+// Client instances for each environment
+const clientInstances: Record<Environment, SafePackageClient | null> = {
+  sandbox: null,
+  production: null,
+};
 
-export function getSafePackageClient(): SafePackageClient {
-  if (!clientInstance) {
-    clientInstance = new SafePackageClient();
+export function getSafePackageClient(environment?: Environment): SafePackageClient {
+  const env = environment || "sandbox";
+  if (!clientInstances[env]) {
+    clientInstances[env] = new SafePackageClient(env);
   }
-  return clientInstance;
+  return clientInstances[env]!;
+}
+
+// Reset client instances (useful for testing)
+export function resetSafePackageClients(): void {
+  clientInstances.sandbox = null;
+  clientInstances.production = null;
 }

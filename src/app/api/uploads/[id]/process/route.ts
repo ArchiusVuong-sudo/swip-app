@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSafePackageClient } from "@/lib/safepackage/client";
+import { getSafePackageClient, type Environment } from "@/lib/safepackage/client";
 import { processProductImages, parseImageField } from "@/lib/utils/image";
 import { CSV_COLUMNS } from "@/lib/csv/constants";
 import type { PackageScreeningRequest, PackageProduct } from "@/lib/safepackage/types";
@@ -127,6 +127,9 @@ export async function POST(
 ) {
   try {
     const { id: uploadId } = await params;
+    const body = await request.json();
+    const environment = (body.environment as Environment) || "sandbox";
+
     const supabase = await createClient();
 
     // Verify user is authenticated
@@ -173,9 +176,10 @@ export async function POST(
     // Transform CSV rows to internal format
     const rows = rawRows.map(transformCSVRow);
     console.log("Transformed rows:", JSON.stringify(rows[0], null, 2));
+    console.log("Using SafePackage environment:", environment);
 
-    // Initialize SafePackage client
-    const client = getSafePackageClient();
+    // Initialize SafePackage client with the selected environment
+    const client = getSafePackageClient(environment);
 
     // Process each row
     const results = {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSafePackageClient } from "@/lib/safepackage/client";
+import { getSafePackageClient, type Environment } from "@/lib/safepackage/client";
 import type { ShipmentRegistrationRequest, ShipmentAddress, TransportationInfo } from "@/lib/safepackage/types";
 
 // GET - List user's shipments
@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
       consignee,
       transportation,
       packageIds, // Array of package UUIDs from our database
+      environment: envFromBody,
     } = body;
+
+    const environment = (envFromBody as Environment) || "sandbox";
 
     // Validate required fields
     if (!externalId || !masterBillPrefix || !masterBillSerialNumber) {
@@ -219,8 +222,8 @@ export async function POST(request: NextRequest) {
       packageIds: safePackageIds,
     };
 
-    // Call SafePackage API
-    const client = getSafePackageClient();
+    // Call SafePackage API with the selected environment
+    const client = getSafePackageClient(environment);
     const result = await client.registerShipment(registrationRequest);
 
     // Log API call

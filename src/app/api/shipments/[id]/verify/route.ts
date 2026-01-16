@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSafePackageClient } from "@/lib/safepackage/client";
+import { getSafePackageClient, type Environment } from "@/lib/safepackage/client";
 
 // POST - Verify a shipment and get CBP document
 export async function POST(
@@ -9,6 +9,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const environment = (body.environment as Environment) || "sandbox";
+
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -52,8 +55,8 @@ export async function POST(
       .update({ status: "verification_pending" } as Record<string, unknown>)
       .eq("id", id);
 
-    // Call SafePackage verification API
-    const client = getSafePackageClient();
+    // Call SafePackage verification API with the selected environment
+    const client = getSafePackageClient(environment);
     const result = await client.verifyShipment({
       shipmentId: shipmentData.safepackage_shipment_id,
     });
