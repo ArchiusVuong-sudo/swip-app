@@ -493,7 +493,7 @@ export default function UploadsPage() {
                 <p className="text-sm">Upload a CSV file to get started.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                 {uploads.map((upload) => {
                   const status = statusConfig[upload.status] || statusConfig.pending;
                   const isProcessingThis = processingUploadId === upload.id;
