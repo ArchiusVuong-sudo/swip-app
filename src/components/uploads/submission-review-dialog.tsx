@@ -44,10 +44,13 @@ import {
   Eye,
   Copy,
   Check,
+  FileSpreadsheet,
+  Receipt,
 } from "lucide-react";
 import type { FileValidationResult } from "@/lib/validation/schemas";
 import { CSV_COLUMNS } from "@/lib/csv/constants";
 import { rowsToApiPayloads, rowsToCSVWithImages, type ParsedCSVRow } from "@/lib/csv/parser";
+import { generateCommercialInvoice, generateIBSafePackageCSV, getInvoiceSummary } from "@/lib/csv/exporters";
 import { processPayloadsWithImages } from "@/lib/utils/image";
 import type { PackageScreeningRequest } from "@/lib/safepackage/types";
 
@@ -181,6 +184,56 @@ export function SubmissionReviewDialog({
     setCopiedJson(true);
     setTimeout(() => setCopiedJson(false), 2000);
   };
+
+  // Download Commercial Invoice CSV
+  const handleDownloadCommercialInvoice = () => {
+    if (!validationResult.rows) return;
+
+    const csvContent = generateCommercialInvoice(
+      validationResult.rows as ParsedCSVRow[],
+      {
+        invoiceNumber: `SWIP-INV-${Date.now()}`,
+        date: new Date().toISOString().split("T")[0],
+        incoterms: "DDP (Los Angeles)",
+        currency: "USD",
+      }
+    );
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `commercial_invoice_${fileName}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download IB SafePackage API Data CSV
+  const handleDownloadIBSafePackageCSV = () => {
+    if (!validationResult.rows) return;
+
+    const csvContent = generateIBSafePackageCSV(
+      validationResult.rows as ParsedCSVRow[]
+    );
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ib_safepackage_api_${fileName}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Get invoice summary for display
+  const invoiceSummary = useMemo(() => {
+    if (!validationResult.rows) return null;
+    return getInvoiceSummary(validationResult.rows as ParsedCSVRow[]);
+  }, [validationResult.rows]);
 
   // Group summary statistics - use CSV column names
   const uniquePlatforms = new Set(
@@ -647,6 +700,59 @@ export function SubmissionReviewDialog({
                         {imageProcessingProgress}
                       </p>
                     )}
+                  </div>
+
+                  {/* Download Commercial Invoice */}
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Receipt className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Commercial Invoice</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Proforma invoice with packing list
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleDownloadCommercialInvoice}
+                      disabled={!validationResult.rows || validationResult.rows.length === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Invoice
+                    </Button>
+                    {invoiceSummary && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        {invoiceSummary.totalQuantity} items, ${invoiceSummary.totalValue.toFixed(2)} total
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Download IB SafePackage API Data */}
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-orange-100 rounded-lg">
+                        <FileSpreadsheet className="h-5 w-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">IB SafePackage API Data</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Full API template format (all columns)
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleDownloadIBSafePackageCSV}
+                      disabled={!validationResult.rows || validationResult.rows.length === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download API CSV
+                    </Button>
                   </div>
                 </div>
               </div>
