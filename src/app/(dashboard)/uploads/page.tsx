@@ -549,7 +549,7 @@ export default function UploadsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => router.push("/packages")}
+                            onClick={() => router.push(`/packages?upload_id=${upload.id}`)}
                           >
                             <Eye className="mr-1 h-3 w-3" />
                             View Packages

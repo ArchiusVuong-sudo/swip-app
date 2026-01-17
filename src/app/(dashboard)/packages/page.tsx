@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -44,24 +45,35 @@ const statusConfig = {
 const ITEMS_PER_PAGE = 20;
 
 export default function PackagesPage() {
+  const searchParams = useSearchParams();
+  const uploadIdFromUrl = searchParams.get("upload_id");
   const [packages, setPackages] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [uploads, setUploads] = useState<any[]>([]);
-  const [selectedUploadId, setSelectedUploadId] = useState<string>("");
+  const [selectedUploadId, setSelectedUploadId] = useState<string>(uploadIdFromUrl || "");
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     fetchUploads();
-  }, []);
+    if (uploadIdFromUrl) {
+      setSelectedUploadId(uploadIdFromUrl);
+    }
+    setInitialized(true);
+  }, [uploadIdFromUrl]);
 
   useEffect(() => {
-    setCurrentPage(1);
-    fetchPackages();
-  }, [selectedUploadId]);
+    if (initialized) {
+      setCurrentPage(1);
+      fetchPackages(selectedUploadId);
+    }
+  }, [selectedUploadId, initialized]);
 
   useEffect(() => {
-    fetchPackages();
+    if (initialized) {
+      fetchPackages(selectedUploadId);
+    }
   }, [currentPage]);
 
   async function fetchUploads() {
@@ -74,7 +86,7 @@ export default function PackagesPage() {
     }
   }
 
-  async function fetchPackages() {
+  async function fetchPackages(uploadId: string) {
     setLoading(true);
     try {
       const offset = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -83,8 +95,8 @@ export default function PackagesPage() {
         offset: offset.toString(),
       });
       
-      if (selectedUploadId && selectedUploadId !== "all") {
-        params.append("upload_id", selectedUploadId);
+      if (uploadId && uploadId !== "all") {
+        params.append("upload_id", uploadId);
       }
 
       const response = await fetch(`/api/packages?${params}`);
