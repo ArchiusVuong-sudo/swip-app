@@ -378,7 +378,6 @@ async function registerShipment(
     terminal_operator: shipment.transportation.terminalOperator,
     // Status
     status: "registered",
-    environment,
   } as Record<string, unknown>).select().single();
 
   if (dbError) {
