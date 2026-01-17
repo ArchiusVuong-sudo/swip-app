@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -29,6 +29,8 @@ import {
   FileCheck,
   Download,
   Upload,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { CreateShipmentDialog } from "./create-shipment-dialog";
@@ -49,8 +51,17 @@ interface Shipment {
   created_at: string;
 }
 
+interface PaginationData {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 interface ShipmentsClientProps {
-  shipments: Shipment[];
+  initialShipments?: Shipment[];
+  initialPagination?: PaginationData;
 }
 
 const statusConfig = {
@@ -62,13 +73,67 @@ const statusConfig = {
   failed: { label: "Failed", variant: "destructive" as const, icon: AlertTriangle },
 };
 
-export function ShipmentsClient({ shipments }: ShipmentsClientProps) {
+const DEFAULT_PAGE_SIZE = 10;
+
+export function ShipmentsClient({
+  initialShipments = [],
+  initialPagination,
+}: ShipmentsClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
+  const [pagination, setPagination] = useState<PaginationData>(
+    initialPagination || {
+      page: 1,
+      pageSize: DEFAULT_PAGE_SIZE,
+      totalCount: 0,
+      totalPages: 0,
+      hasMore: false,
+    }
+  );
+  const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
+  // Sync with URL query params
+  useEffect(() => {
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const pageSize = parseInt(searchParams.get("pageSize") || String(DEFAULT_PAGE_SIZE), 10);
+
+    if (page !== pagination.page || pageSize !== pagination.pageSize) {
+      fetchShipments(page, pageSize);
+    }
+  }, [searchParams]);
+
+  const fetchShipments = async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/shipments?page=${page}&pageSize=${pageSize}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch shipments");
+      }
+      const data = await response.json();
+      setShipments(data.shipments);
+      setPagination(data.pagination);
+
+      // Update URL
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+      window.history.replaceState(null, "", `?${params.toString()}`);
+    } catch (error) {
+      console.error("Error fetching shipments:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    fetchShipments(newPage, pagination.pageSize);
+  };
+
   const handleSuccess = () => {
-    router.refresh();
+    fetchShipments(pagination.page, pagination.pageSize);
   };
 
   return (
@@ -98,7 +163,7 @@ export function ShipmentsClient({ shipments }: ShipmentsClientProps) {
         <CardHeader>
           <CardTitle>All Shipments</CardTitle>
           <CardDescription>
-            {shipments.length} shipment{shipments.length !== 1 ? "s" : ""} found
+            {pagination.totalCount} total shipment{pagination.totalCount !== 1 ? "s" : ""} found
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -176,10 +241,58 @@ export function ShipmentsClient({ shipments }: ShipmentsClientProps) {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Create Shipment Dialog */}
+          {/* Pagination Controls */}
+          {shipments.length > 0 && (
+           <div className="flex items-center justify-between pt-4 border-t">
+             <div className="text-sm text-muted-foreground">
+               Showing {(pagination.page - 1) * pagination.pageSize + 1} to{" "}
+               {Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} of{" "}
+               {pagination.totalCount} shipments
+             </div>
+             <div className="flex gap-2">
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={() => handlePageChange(pagination.page - 1)}
+                 disabled={pagination.page === 1 || isLoading}
+               >
+                 <ChevronLeft className="h-4 w-4 mr-1" />
+                 Previous
+               </Button>
+               <div className="flex items-center gap-2">
+                 {Array.from({ length: Math.min(5, pagination.totalPages) }).map((_, i) => {
+                   const pageNum = pagination.page > 3 ? pagination.page - 2 + i : i + 1;
+                   if (pageNum > pagination.totalPages) return null;
+                   return (
+                     <Button
+                       key={pageNum}
+                       variant={pageNum === pagination.page ? "default" : "outline"}
+                       size="sm"
+                       onClick={() => handlePageChange(pageNum)}
+                       disabled={isLoading}
+                     >
+                       {pageNum}
+                     </Button>
+                   );
+                 })}
+               </div>
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={() => handlePageChange(pagination.page + 1)}
+                 disabled={!pagination.hasMore || isLoading}
+               >
+                 Next
+                 <ChevronRight className="h-4 w-4 ml-1" />
+               </Button>
+             </div>
+           </div>
+          )}
+          </CardContent>
+          </Card>
+
+          {/* Create Shipment Dialog */}
       <CreateShipmentDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}

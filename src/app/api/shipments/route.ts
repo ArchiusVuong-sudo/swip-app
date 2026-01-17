@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getSafePackageClient, type Environment } from "@/lib/safepackage/client";
 import type { ShipmentRegistrationRequest, ShipmentAddress, TransportationInfo } from "@/lib/safepackage/types";
 
-// GET - List user's shipments
-export async function GET() {
+// GET - List user's shipments with pagination
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -13,6 +13,25 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get pagination parameters from query string
+    const url = new URL(request.url);
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+    const pageSize = Math.min(50, Math.max(1, parseInt(url.searchParams.get("pageSize") || "10", 10)));
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    // Get total count
+    const { count, error: countError } = await supabase
+      .from("shipments")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (countError) {
+      return NextResponse.json({ error: countError.message }, { status: 500 });
+    }
+
+    // Get paginated data
     const { data: shipments, error } = await supabase
       .from("shipments")
       .select(`
@@ -20,13 +39,26 @@ export async function GET() {
         packages:packages(id, external_id, status, barcode)
       `)
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ shipments });
+    const totalCount = count || 0;
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    return NextResponse.json({
+      shipments,
+      pagination: {
+        page,
+        pageSize,
+        totalCount,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    });
   } catch (error) {
     console.error("Error fetching shipments:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
