@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+"use client";
+
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -16,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Package, CheckCircle, XCircle, Clock, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import { Package, CheckCircle, XCircle, Clock, AlertTriangle, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 const statusConfig = {
@@ -32,26 +34,32 @@ const statusConfig = {
   registered: { label: "Registered", variant: "default" as const, icon: CheckCircle },
 };
 
-export default async function PackagesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+const ITEMS_PER_PAGE = 20;
 
-  let packages: any[] = [];
+export default function PackagesPage() {
+  const [packages, setPackages] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
 
-  if (user) {
+  useEffect(() => {
+    fetchPackages();
+  }, [currentPage]);
+
+  async function fetchPackages() {
+    setLoading(true);
     try {
-      const { data } = await supabase
-        .from("packages")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      packages = data || [];
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const response = await fetch(
+        `/api/packages?limit=${ITEMS_PER_PAGE}&offset=${offset}`
+      );
+      const data = await response.json();
+      setPackages(data.packages || []);
+      setTotal(data.total || 0);
     } catch (error) {
-      // Table may not exist yet
+      console.error("Error fetching packages:", error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -64,6 +72,8 @@ export default async function PackagesPage() {
     acc[uploadId].push(pkg);
     return acc;
   }, {});
+
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-6">
@@ -87,11 +97,16 @@ export default async function PackagesPage() {
         <CardHeader>
           <CardTitle>All Packages</CardTitle>
           <CardDescription>
-            {packages.length} package{packages.length !== 1 ? "s" : ""} found
+            {total} package{total !== 1 ? "s" : ""} found
+            {totalPages > 1 && ` • Page ${currentPage} of ${totalPages}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {packages.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-muted-foreground">Loading packages...</p>
+            </div>
+          ) : packages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Package className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">No packages yet</h3>
@@ -178,6 +193,51 @@ export default async function PackagesPage() {
                   </Table>
                 </div>
               ))}
+
+              {/* Pagination Controls */}
+              <div className="flex items-center justify-between pt-4 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, total)} of {total}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1 || loading}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }).map((_, i) => {
+                      const page = i + 1;
+                      return (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          className="w-10 p-0"
+                          onClick={() => setCurrentPage(page)}
+                          disabled={loading}
+                        >
+                          {page}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages || loading}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
