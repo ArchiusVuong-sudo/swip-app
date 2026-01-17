@@ -76,28 +76,6 @@ export default async function PackagesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {packages.length > 0 && (
-            <>
-              <Button variant="outline" asChild>
-                <a href="/api/exports/shipment-register">
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Download CSV
-                </a>
-              </Button>
-              <Button variant="outline" asChild>
-                <a href="/api/exports/commercial-invoice">
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Commercial Invoice
-                </a>
-              </Button>
-              <Button variant="outline" asChild>
-                <a href="/api/exports/packing-list">
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Packing List
-                </a>
-              </Button>
-            </>
-          )}
           <Button asChild>
             <Link href="/uploads">Upload CSV</Link>
           </Button>
@@ -128,10 +106,32 @@ export default async function PackagesPage() {
             <div className="space-y-6">
               {Object.entries(groupedPackages).map(([uploadId, groupPkgs]) => (
                 <div key={uploadId} className="space-y-2">
-                  <div className="bg-muted px-4 py-2 rounded-md">
+                  <div className="bg-muted px-4 py-2 rounded-md flex items-center justify-between">
                     <p className="text-sm font-semibold">
                       Upload ID: <span className="font-mono text-xs">{uploadId === "no-upload" ? "-" : uploadId}</span>
                     </p>
+                    {uploadId !== "no-upload" && (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/api/exports/shipment-register?upload_id=${uploadId}`}>
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            Download CSV
+                          </a>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/api/exports/commercial-invoice?upload_id=${uploadId}`}>
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            Commercial Invoice
+                          </a>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/api/exports/packing-list?upload_id=${uploadId}`}>
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            Packing List
+                          </a>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <Table>
                     <TableHeader>
