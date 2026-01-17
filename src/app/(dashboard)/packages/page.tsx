@@ -18,6 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Package, CheckCircle, XCircle, Clock, AlertTriangle, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -41,18 +48,46 @@ export default function PackagesPage() {
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [uploads, setUploads] = useState<any[]>([]);
+  const [selectedUploadId, setSelectedUploadId] = useState<string>("");
+
+  useEffect(() => {
+    fetchUploads();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchPackages();
+  }, [selectedUploadId]);
 
   useEffect(() => {
     fetchPackages();
   }, [currentPage]);
 
+  async function fetchUploads() {
+    try {
+      const response = await fetch("/api/uploads");
+      const data = await response.json();
+      setUploads(data.uploads || []);
+    } catch (error) {
+      console.error("Error fetching uploads:", error);
+    }
+  }
+
   async function fetchPackages() {
     setLoading(true);
     try {
       const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-      const response = await fetch(
-        `/api/packages?limit=${ITEMS_PER_PAGE}&offset=${offset}`
-      );
+      const params = new URLSearchParams({
+        limit: ITEMS_PER_PAGE.toString(),
+        offset: offset.toString(),
+      });
+      
+      if (selectedUploadId && selectedUploadId !== "all") {
+        params.append("upload_id", selectedUploadId);
+      }
+
+      const response = await fetch(`/api/packages?${params}`);
       const data = await response.json();
       setPackages(data.packages || []);
       setTotal(data.total || 0);
@@ -90,6 +125,27 @@ export default function PackagesPage() {
             <Link href="/uploads">Upload CSV</Link>
           </Button>
         </div>
+      </div>
+
+      {/* Filter Section */}
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium">Filter by Upload:</label>
+        <Select value={selectedUploadId} onValueChange={setSelectedUploadId}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="All uploads" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All uploads</SelectItem>
+            {uploads.map((upload) => {
+              const uploadDate = new Date(upload.created_at).toLocaleString();
+              return (
+                <SelectItem key={upload.id} value={upload.id}>
+                  {upload.file_name} • {uploadDate}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Packages Table */}

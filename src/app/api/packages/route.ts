@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status");
     const unassigned = searchParams.get("unassigned") === "true";
+    const uploadId = searchParams.get("upload_id");
     const limit = parseInt(searchParams.get("limit") || "100");
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -36,6 +37,11 @@ export async function GET(request: NextRequest) {
       query = query.is("shipment_id", null);
     }
 
+    // Filter by upload_id
+    if (uploadId) {
+      query = query.eq("upload_id", uploadId);
+    }
+
     const { data: packages, error } = await query;
 
     if (error) {
@@ -54,6 +60,9 @@ export async function GET(request: NextRequest) {
     }
     if (unassigned) {
       countQuery = countQuery.is("shipment_id", null);
+    }
+    if (uploadId) {
+      countQuery = countQuery.eq("upload_id", uploadId);
     }
 
     const { count } = await countQuery;
