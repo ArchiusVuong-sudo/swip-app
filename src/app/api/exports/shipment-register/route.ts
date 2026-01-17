@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { CSV_COLUMNS } from "@/lib/csv/constants";
 
 interface PackageRow {
   id: string;
+  upload_id: string | null;
   safepackage_id: string | null;
   external_id: string;
   house_bill_number: string;
@@ -36,6 +38,15 @@ interface PackageRow {
   status: string;
 }
 
+interface RawCSVRow {
+  [key: string]: string | undefined;
+}
+
+interface UploadData {
+  id: string;
+  raw_data: unknown;
+}
+
 function escapeCSVField(field: string | number | null | undefined): string {
   if (field === null || field === undefined) {
     return "";
@@ -65,6 +76,7 @@ export async function GET(request: NextRequest) {
       .from("packages")
       .select(`
         id,
+        upload_id,
         safepackage_id,
         external_id,
         house_bill_number,
@@ -118,6 +130,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "No packages found" }, { status: 404 });
     }
 
+    // Fetch original upload data to get fields not stored in packages table
+    const packageRows = packages as PackageRow[];
+    const uploadIds = Array.from(new Set(packageRows.map((p) => p.upload_id).filter(Boolean)));
+    const rawDataMap = new Map<string, RawCSVRow>();
+
+    if (uploadIds.length > 0) {
+      const { data: uploads, error: uploadsError } = await supabase
+        .from("uploads")
+        .select("id, raw_data")
+        .in("id", uploadIds);
+
+      if (!uploadsError && uploads) {
+        for (const upload of uploads as UploadData[]) {
+          if (Array.isArray(upload.raw_data)) {
+            for (const row of upload.raw_data as RawCSVRow[]) {
+              const externalId = row[CSV_COLUMNS.EXTERNAL_ID];
+              if (externalId) {
+                // Key is combo of upload_id and external_id to avoid collisions
+                rawDataMap.set(`${upload.id}:${externalId}`, row);
+              }
+            }
+          }
+        }
+      }
+    }
+
     // CSV headers matching ShipmentRegistrationRequest structure
     const headers = [
       // External ID (for grouping into shipments)
@@ -167,17 +205,20 @@ export async function GET(request: NextRequest) {
     const rows: string[][] = [];
 
     for (const pkg of packages as PackageRow[]) {
+      // Look up raw data
+      const rawRow = pkg.upload_id ? rawDataMap.get(`${pkg.upload_id}:${pkg.external_id}`) : undefined;
+      
       const row = [
         // shipment_external_id - can be grouped by external_id or generate new
         pkg.external_id,
-        // master_bill_prefix - needs to be filled by user
-        "",
-        // master_bill_serial_number - needs to be filled by user
-        "",
-        // originator_code - optional
-        "",
-        // entry_type - optional (01, 11, 86, P)
-        "",
+        // master_bill_prefix
+        rawRow?.[CSV_COLUMNS.MASTER_BILL_PREFIX] || "",
+        // master_bill_serial_number
+        rawRow?.[CSV_COLUMNS.MASTER_BILL_SERIAL_NUMBER] || "",
+        // originator_code
+        rawRow?.[CSV_COLUMNS.ORIGINATOR_CODE] || "",
+        // entry_type
+        rawRow?.[CSV_COLUMNS.ENTRY_TYPE] || "",
         // Shipper
         pkg.shipper_name,
         pkg.shipper_line1,
@@ -198,18 +239,18 @@ export async function GET(request: NextRequest) {
         pkg.consignee_country,
         pkg.consignee_phone || "",
         pkg.consignee_email || "",
-        // Transportation - needs to be filled by user
-        "", // transport_mode (AIR or TRUCK)
-        "", // port_of_entry
-        "", // port_of_origin
-        "", // port_of_arrival
-        "", // carrier_name
-        "", // carrier_code (IATA code)
-        "", // line_number
-        "", // shipping_date (YYYY-MM-DD)
-        "", // scheduled_arrival_date (YYYY-MM-DD)
-        "", // firms_code
-        "", // terminal_operator
+        // Transportation
+        rawRow?.[CSV_COLUMNS.TRANSPORT_MODE] || "",
+        rawRow?.[CSV_COLUMNS.PORT_OF_ENTRY] || "",
+        rawRow?.[CSV_COLUMNS.PORT_OF_ORIGIN] || "",
+        rawRow?.[CSV_COLUMNS.PORT_OF_ARRIVAL] || "",
+        rawRow?.[CSV_COLUMNS.CARRIER_NAME] || "",
+        rawRow?.[CSV_COLUMNS.CARRIER_CODE] || "",
+        rawRow?.[CSV_COLUMNS.FLIGHT_VOYAGE_NUMBER] || "", // line_number maps to flight/voyage
+        rawRow?.[CSV_COLUMNS.SHIPPING_DATE] || "",
+        rawRow?.[CSV_COLUMNS.SCHEDULED_ARRIVAL_DATE] || "",
+        rawRow?.[CSV_COLUMNS.FIRMS_CODE] || "",
+        rawRow?.[CSV_COLUMNS.TERMINAL_OPERATOR] || "",
         // Package ID from SafePackage
         pkg.safepackage_id || "",
       ];
