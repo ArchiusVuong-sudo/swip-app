@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -31,7 +31,15 @@ import {
   Upload,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import Link from "next/link";
 import { CreateShipmentDialog } from "./create-shipment-dialog";
 import { UploadShipmentCSVDialog } from "./upload-shipment-csv-dialog";
@@ -47,6 +55,10 @@ interface Shipment {
   carrier_name: string;
   status: string;
   shipping_date: string;
+  safepackage_shipment_id?: string;
+  verification_status?: string;
+  verification_reason_code?: string;
+  verification_reason_description?: string;
   verification_document_content?: string;
   created_at: string;
 }
@@ -79,7 +91,6 @@ export function ShipmentsClient({
   initialShipments = [],
   initialPagination,
 }: ShipmentsClientProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
   const [pagination, setPagination] = useState<PaginationData>(
@@ -94,6 +105,7 @@ export function ShipmentsClient({
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   // Sync with URL query params
   useEffect(() => {
@@ -134,6 +146,35 @@ export function ShipmentsClient({
 
   const handleSuccess = () => {
     fetchShipments(pagination.page, pagination.pageSize);
+  };
+
+  const handleVerify = async (shipmentId: string) => {
+    setVerifyingId(shipmentId);
+    try {
+      const response = await fetch(`/api/shipments/${shipmentId}/verify`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to verify shipment");
+      }
+
+      const result = await response.json();
+
+      if (result.verification?.status === "Accepted") {
+        toast.success("Shipment verified successfully!");
+      } else {
+        toast.error(`Verification rejected: ${result.verification?.reason?.description || "Unknown reason"}`);
+      }
+
+      fetchShipments(pagination.page, pagination.pageSize);
+    } catch (error) {
+      console.error("Error verifying shipment:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to verify shipment");
+    } finally {
+      setVerifyingId(null);
+    }
   };
 
   return (
@@ -198,6 +239,9 @@ export function ShipmentsClient({
                   const status = statusConfig[shipment.status as keyof typeof statusConfig] || statusConfig.pending;
                   const StatusIcon = status.icon;
                   const hasDocument = !!shipment.verification_document_content;
+                  const canVerify = shipment.status === "registered" && shipment.safepackage_shipment_id;
+                  const isVerifying = verifyingId === shipment.id;
+                  const isRejected = shipment.status === "rejected";
 
                   return (
                     <TableRow key={shipment.id}>
@@ -213,10 +257,26 @@ export function ShipmentsClient({
                       </TableCell>
                       <TableCell>{shipment.carrier_name}</TableCell>
                       <TableCell>
-                        <Badge variant={status.variant} className="gap-1">
-                          <StatusIcon className="h-3 w-3" />
-                          {status.label}
-                        </Badge>
+                        {isRejected && shipment.verification_reason_description ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant={status.variant} className="gap-1 cursor-help">
+                                  <StatusIcon className="h-3 w-3" />
+                                  {status.label}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">{shipment.verification_reason_description}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Badge variant={status.variant} className="gap-1">
+                            <StatusIcon className="h-3 w-3" />
+                            {status.label}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(shipment.shipping_date).toLocaleDateString()}
@@ -228,6 +288,21 @@ export function ShipmentsClient({
                               <a href={`/api/shipments/${shipment.id}/document`} download>
                                 <Download className="h-4 w-4" />
                               </a>
+                            </Button>
+                          )}
+                          {canVerify && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerify(shipment.id)}
+                              disabled={isVerifying}
+                            >
+                              {isVerifying ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileCheck className="h-4 w-4 mr-1" />
+                              )}
+                              {isVerifying ? "Verifying..." : "Verify"}
                             </Button>
                           )}
                           <Button variant="ghost" size="sm" asChild>
