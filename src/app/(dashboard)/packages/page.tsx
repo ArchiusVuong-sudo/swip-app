@@ -146,7 +146,7 @@ export default async function PackagesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(pkg.created_at).toLocaleDateString()}
+                        {new Date(pkg.created_at).toLocaleString()}
                       </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="sm" asChild>
