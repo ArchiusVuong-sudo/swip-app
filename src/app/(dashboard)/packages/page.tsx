@@ -55,6 +55,16 @@ export default async function PackagesPage() {
     }
   }
 
+  // Group packages by upload_id
+  const groupedPackages = packages.reduce((acc: Record<string, any[]>, pkg) => {
+    const uploadId = pkg.upload_id || "no-upload";
+    if (!acc[uploadId]) {
+      acc[uploadId] = [];
+    }
+    acc[uploadId].push(pkg);
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -115,49 +125,60 @@ export default async function PackagesPage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>External ID</TableHead>
-                  <TableHead>House Bill</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Consignee</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {packages.map((pkg) => {
-                  const status = statusConfig[pkg.status as keyof typeof statusConfig] || statusConfig.pending;
-                  const StatusIcon = status.icon;
-                  return (
-                    <TableRow key={pkg.id}>
-                      <TableCell className="font-medium">
-                        {pkg.external_id}
-                      </TableCell>
-                      <TableCell>{pkg.house_bill_number}</TableCell>
-                      <TableCell className="capitalize">{pkg.platform_id}</TableCell>
-                      <TableCell>{pkg.consignee_name}</TableCell>
-                      <TableCell>
-                        <Badge variant={status.variant} className="gap-1">
-                          <StatusIcon className="h-3 w-3" />
-                          {status.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(pkg.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/packages/${pkg.id}`}>View</Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="space-y-6">
+              {Object.entries(groupedPackages).map(([uploadId, groupPkgs]) => (
+                <div key={uploadId} className="space-y-2">
+                  <div className="bg-muted px-4 py-2 rounded-md">
+                    <p className="text-sm font-semibold">
+                      Upload ID: <span className="font-mono text-xs">{uploadId === "no-upload" ? "-" : uploadId}</span>
+                    </p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>External ID</TableHead>
+                        <TableHead>House Bill</TableHead>
+                        <TableHead>Platform</TableHead>
+                        <TableHead>Consignee</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groupPkgs.map((pkg) => {
+                        const status = statusConfig[pkg.status as keyof typeof statusConfig] || statusConfig.pending;
+                        const StatusIcon = status.icon;
+                        return (
+                          <TableRow key={pkg.id}>
+                            <TableCell className="font-medium">
+                              {pkg.external_id}
+                            </TableCell>
+                            <TableCell>{pkg.house_bill_number}</TableCell>
+                            <TableCell className="capitalize">{pkg.platform_id}</TableCell>
+                            <TableCell>{pkg.consignee_name}</TableCell>
+                            <TableCell>
+                              <Badge variant={status.variant} className="gap-1">
+                                <StatusIcon className="h-3 w-3" />
+                                {status.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {new Date(pkg.created_at).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link href={`/packages/${pkg.id}`}>View</Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
