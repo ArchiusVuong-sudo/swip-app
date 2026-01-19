@@ -25,6 +25,7 @@ import {
   QrCode,
 } from "lucide-react";
 import { QRCodeDisplay } from "@/components/packages/qr-code-display";
+import { ApiResponseDisplay } from "@/components/packages/api-response-display";
 
 const statusConfig = {
   pending: { label: "Pending", variant: "secondary" as const, icon: Clock, color: "text-gray-600" },
@@ -275,9 +276,7 @@ export default async function PackageDetailPage({ params }: PackageDetailPagePro
             <CardDescription>Raw response from SafePackage API</CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="bg-muted p-4 rounded-lg overflow-auto text-xs">
-              {JSON.stringify(pkg.screening_response, null, 2)}
-            </pre>
+            <ApiResponseDisplay response={pkg.screening_response} />
           </CardContent>
         </Card>
       )}
