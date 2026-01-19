@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/select";
 import { Package, CheckCircle, XCircle, Clock, AlertTriangle, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 
 const statusConfig = {
   pending: { label: "Pending", variant: "secondary" as const, icon: Clock },
@@ -121,6 +123,25 @@ export default function PackagesPage() {
   }, {});
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+
+  async function handleDeletePackage(packageId: string) {
+    try {
+      const response = await fetch(`/api/packages/${packageId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete package");
+      }
+
+      toast.success("Package deleted successfully");
+      fetchPackages(selectedUploadId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete package");
+      throw error;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -250,9 +271,16 @@ export default function PackagesPage() {
                               {new Date(pkg.created_at).toLocaleString()}
                             </TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="sm" asChild>
-                                <Link href={`/packages/${pkg.id}`}>View</Link>
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link href={`/packages/${pkg.id}`}>View</Link>
+                                </Button>
+                                <DeleteConfirmDialog
+                                  title="Delete Package"
+                                  description={`Are you sure you want to delete package "${pkg.external_id}"? This action cannot be undone.`}
+                                  onConfirm={() => handleDeletePackage(pkg.id)}
+                                />
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

@@ -49,8 +49,10 @@ import {
   User,
   Mail,
   Phone,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 
 interface PackageItem {
   id: string;
@@ -175,6 +177,25 @@ export function ShipmentDetailClient({ shipment }: ShipmentDetailClientProps) {
     }
   };
 
+  const handleDeleteShipment = async () => {
+    try {
+      const response = await fetch(`/api/shipments/${shipment.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete shipment");
+      }
+
+      toast.success("Shipment deleted successfully");
+      router.push("/shipments");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete shipment");
+      throw error;
+    }
+  };
+
   const formatAddress = (
     line1: string,
     line2: string | undefined,
@@ -238,6 +259,14 @@ export function ShipmentDetailClient({ shipment }: ShipmentDetailClientProps) {
                 Download CBP Document
               </a>
             </Button>
+          )}
+          {shipment.status === "pending" && (
+            <DeleteConfirmDialog
+              title="Delete Shipment"
+              description={`Are you sure you want to delete shipment "${shipment.external_id}"? This action cannot be undone.`}
+              onConfirm={handleDeleteShipment}
+              variant="button"
+            />
           )}
         </div>
       </div>

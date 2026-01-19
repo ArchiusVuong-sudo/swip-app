@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { QRCodeDisplay } from "@/components/packages/qr-code-display";
 import { ApiResponseDisplay } from "@/components/packages/api-response-display";
+import { PackageDetailActions } from "@/components/packages/package-detail-actions";
 
 const statusConfig = {
   pending: { label: "Pending", variant: "secondary" as const, icon: Clock, color: "text-gray-600" },
@@ -91,6 +92,7 @@ export default async function PackageDetailPage({ params }: PackageDetailPagePro
           <StatusIcon className="h-4 w-4" />
           {status.label}
         </Badge>
+        <PackageDetailActions packageId={pkg.id} externalId={pkg.external_id} />
       </div>
 
       {/* Screening Result Summary */}

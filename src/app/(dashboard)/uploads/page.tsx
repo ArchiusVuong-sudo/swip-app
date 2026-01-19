@@ -36,7 +36,9 @@ import {
   Send,
   Eye,
   History,
+  Trash2,
 } from "lucide-react";
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 
 interface ProcessingResults {
   total: number;
@@ -368,6 +370,26 @@ export default function UploadsPage() {
     setShowAuditLog(true);
   };
 
+  // Handle delete upload
+  const handleDeleteUpload = async (uploadId: string) => {
+    try {
+      const response = await fetch(`/api/uploads/${uploadId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete upload");
+      }
+
+      toast.success("Upload deleted successfully");
+      loadUploads();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete upload");
+      throw error;
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -562,6 +584,12 @@ export default function UploadsPage() {
                         >
                           <History className="h-3 w-3" />
                         </Button>
+                        <DeleteConfirmDialog
+                          title="Delete Upload"
+                          description={`Are you sure you want to delete "${upload.file_name}"? This will also delete all ${upload.row_count} packages associated with this upload. This action cannot be undone.`}
+                          onConfirm={() => handleDeleteUpload(upload.id)}
+                          variant="icon"
+                        />
                       </div>
                     </div>
                   );
