@@ -18,17 +18,33 @@ import type {
 
 export type Environment = "sandbox" | "production";
 
-// API credentials for each environment
+// API configuration for each environment
+// Keys are loaded from environment variables - API keys should NOT be hardcoded
 export const ENVIRONMENT_CONFIG = {
   sandbox: {
     baseUrl: "https://sandbox.safepackage.com",
-    apiKey: "qmHpZv4dDPBqYOtnMfdv5H3SXAiUYRRCGHsOeDV3paQ1WdqET6RbytnCB0Sa14LR",
   },
   production: {
     baseUrl: "https://api.safepackage.com",
-    apiKey: "KYBty0Gp8c9EwGbEvz32OXxYA76NEosvGSYPuqG6KeCKsBfBAxqIEKVDkusjkoXj",
   },
 };
+
+/**
+ * Get the API key for a given environment
+ * Priority: user-provided key > environment variable
+ */
+export function getApiKey(environment: Environment, userApiKey?: string): string {
+  // User-provided key takes priority
+  if (userApiKey) {
+    return userApiKey;
+  }
+
+  // Fall back to environment variables
+  if (environment === "sandbox") {
+    return process.env.SAFEPACKAGE_SANDBOX_API_KEY || "";
+  }
+  return process.env.SAFEPACKAGE_PRODUCTION_API_KEY || "";
+}
 
 export class SafePackageClient {
   private baseUrl: string;
@@ -43,10 +59,11 @@ export class SafePackageClient {
     const envConfig = ENVIRONMENT_CONFIG[this.environment];
 
     this.baseUrl = baseUrl || envConfig.baseUrl;
-    this.apiKey = apiKey || envConfig.apiKey;
+    // Use provided apiKey, or fall back to environment variable
+    this.apiKey = apiKey || getApiKey(this.environment);
 
     if (!this.baseUrl || !this.apiKey) {
-      throw new Error("SafePackage API URL and API Key are required");
+      throw new Error(`SafePackage API URL and API Key are required for ${this.environment} environment. Please configure SAFEPACKAGE_${this.environment.toUpperCase()}_API_KEY environment variable.`);
     }
 
     // For sandbox environments with expired SSL certificates, disable TLS verification
@@ -223,22 +240,31 @@ export class SafePackageClient {
   }
 }
 
-// Client instances for each environment
-const clientInstances: Record<Environment, SafePackageClient | null> = {
-  sandbox: null,
-  production: null,
-};
+// Client instances cache - keyed by environment + apiKey hash
+const clientInstances: Map<string, SafePackageClient> = new Map();
 
-export function getSafePackageClient(environment?: Environment): SafePackageClient {
-  const env = environment || "sandbox";
-  if (!clientInstances[env]) {
-    clientInstances[env] = new SafePackageClient(env);
-  }
-  return clientInstances[env]!;
+function getClientKey(environment: Environment, apiKey?: string): string {
+  // Use a simple hash to differentiate user-provided keys
+  const keyHash = apiKey ? apiKey.substring(0, 8) : "default";
+  return `${environment}:${keyHash}`;
 }
 
-// Reset client instances (useful for testing)
+/**
+ * Get or create a SafePackage client for the given environment
+ * @param environment - The environment to use (sandbox or production)
+ * @param userApiKey - Optional user-provided API key (takes priority over env vars)
+ */
+export function getSafePackageClient(environment?: Environment, userApiKey?: string): SafePackageClient {
+  const env = environment || "sandbox";
+  const clientKey = getClientKey(env, userApiKey);
+
+  if (!clientInstances.has(clientKey)) {
+    clientInstances.set(clientKey, new SafePackageClient(env, undefined, userApiKey));
+  }
+  return clientInstances.get(clientKey)!;
+}
+
+// Reset client instances (useful for testing or when API keys change)
 export function resetSafePackageClients(): void {
-  clientInstances.sandbox = null;
-  clientInstances.production = null;
+  clientInstances.clear();
 }
