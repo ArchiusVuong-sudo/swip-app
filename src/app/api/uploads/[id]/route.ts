@@ -63,11 +63,11 @@ export async function DELETE(
     const { data: packages } = await supabase
       .from("packages")
       .select("id")
-      .eq("upload_id", id);
+      .eq("upload_id", id) as { data: { id: string }[] | null };
 
     // Delete package_products for all packages
     if (packages && packages.length > 0) {
-      const packageIds = packages.map(p => p.id);
+      const packageIds = packages.map((p: { id: string }) => p.id);
       await supabase
         .from("package_products")
         .delete()
