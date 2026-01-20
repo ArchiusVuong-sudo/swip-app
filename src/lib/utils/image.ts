@@ -162,13 +162,16 @@ export function parseImageField(imageField: string | undefined): string[] {
 
 /**
  * Process image fields from CSV row - fetch URLs and convert to Base64
+ * Uses parallel fetching for better performance
  * @param imageUrls - Array of image URLs or base64 strings
  * @returns Array of Base64 encoded images
  */
 export async function processProductImages(
   imageUrls: string[]
 ): Promise<string[]> {
-  const results: string[] = [];
+  // Separate base64 images from URLs that need fetching
+  const base64Images: string[] = [];
+  const urlsToFetch: string[] = [];
 
   for (const imageUrl of imageUrls) {
     if (!imageUrl || imageUrl.trim() === "") {
@@ -189,18 +192,24 @@ export async function processProductImages(
       ) {
         continue;
       }
-      results.push(imageUrl);
+      base64Images.push(imageUrl);
       continue;
     }
 
-    // Fetch and convert
-    const base64 = await fetchImageAsBase64(imageUrl);
-    if (base64) {
-      results.push(base64);
-    }
+    // Queue URL for parallel fetching
+    urlsToFetch.push(imageUrl);
   }
 
-  return results;
+  // Fetch all URLs in parallel for better performance
+  const fetchedImages = await Promise.all(
+    urlsToFetch.map((url) => fetchImageAsBase64(url))
+  );
+
+  // Combine base64 images with fetched images (filter out nulls)
+  return [
+    ...base64Images,
+    ...fetchedImages.filter((img): img is string => img !== null),
+  ];
 }
 
 /**
