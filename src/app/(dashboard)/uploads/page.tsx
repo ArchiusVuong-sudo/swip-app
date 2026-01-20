@@ -300,11 +300,6 @@ export default function UploadsPage() {
       setValidationResult(null);
       setProgress(0);
       setShowSubmissionReview(false);
-
-      // If valid, navigate to packages
-      if (validationResult.isValid) {
-        router.push("/packages");
-      }
     } catch (error) {
       console.error("Error submitting upload:", error);
       toast.error("Failed to submit file");
@@ -352,9 +347,6 @@ export default function UploadsPage() {
 
       // Refresh uploads list
       loadUploads();
-
-      // Navigate to packages page to see results
-      router.push("/packages");
     } catch (error) {
       console.error("Error processing upload:", error);
       toast.error(error instanceof Error ? error.message : "Failed to process upload");
