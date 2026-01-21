@@ -12,6 +12,8 @@ import type {
   ShipmentRegistrationResponse,
   ShipmentVerificationRequest,
   ShipmentVerificationResponse,
+  PackageTrackingResponse,
+  ShipmentTrackingResponse,
   ApiResponse,
   SafePackageError,
 } from "./types";
@@ -236,6 +238,60 @@ export class SafePackageClient {
     return this.request<ShipmentVerificationResponse>("/v1/shipment/verify", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  // =============================================================================
+  // Tracking Endpoints (v1.17 Supplement)
+  // =============================================================================
+
+  /**
+   * Get tracking events for a package
+   * @param packageId - SafePackage package identifier (optional if externalId provided)
+   * @param externalId - External package identifier (required if packageId not provided)
+   * @param format - Additional tracking data format (optional)
+   */
+  async getPackageTracking(
+    packageId?: string,
+    externalId?: string,
+    format?: string
+  ): Promise<ApiResponse<PackageTrackingResponse>> {
+    const params = new URLSearchParams();
+    if (externalId) params.append("externalId", externalId);
+    if (format) params.append("format", format);
+
+    const queryString = params.toString();
+    const path = packageId
+      ? `/v1/tracking/package/${packageId}${queryString ? `?${queryString}` : ""}`
+      : `/v1/tracking/package${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PackageTrackingResponse>(path, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * Get tracking events for a shipment
+   * @param shipmentId - SafePackage shipment identifier (optional if externalId provided)
+   * @param externalId - External shipment identifier (required if shipmentId not provided)
+   * @param format - Additional tracking data format (optional)
+   */
+  async getShipmentTracking(
+    shipmentId?: string,
+    externalId?: string,
+    format?: string
+  ): Promise<ApiResponse<ShipmentTrackingResponse>> {
+    const params = new URLSearchParams();
+    if (externalId) params.append("externalId", externalId);
+    if (format) params.append("format", format);
+
+    const queryString = params.toString();
+    const path = shipmentId
+      ? `/v1/tracking/shipment/${shipmentId}${queryString ? `?${queryString}` : ""}`
+      : `/v1/tracking/shipment${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<ShipmentTrackingResponse>(path, {
+      method: "GET",
     });
   }
 }

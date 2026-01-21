@@ -11,6 +11,7 @@ import { RowEditor } from "@/components/uploads/row-editor";
 import { SubmissionReviewDialog } from "@/components/uploads/submission-review-dialog";
 import { APISubmissionDialog } from "@/components/uploads/api-submission-dialog";
 import { AuditLogViewer } from "@/components/uploads/audit-log-viewer";
+import { ApiFailuresViewer } from "@/components/uploads/api-failures-viewer";
 import { logSubmissionReview, logAPISubmission } from "@/lib/audit/logger";
 import { useEnvironmentStore } from "@/stores/environment-store";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,8 @@ export default function UploadsPage() {
   const [selectedUploadForAPI, setSelectedUploadForAPI] = useState<Upload | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [auditLogUploadId, setAuditLogUploadId] = useState<string | undefined>(undefined);
+  const [showFailuresViewer, setShowFailuresViewer] = useState(false);
+  const [failuresUploadId, setFailuresUploadId] = useState<string | undefined>(undefined);
 
   // Load upload history
   useEffect(() => {
@@ -573,9 +576,25 @@ export default function UploadsPage() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleViewAuditLog(upload.id)}
+                          title="View Audit Log"
                         >
                           <History className="h-3 w-3" />
                         </Button>
+                        {upload.processing_results && upload.processing_results.failed > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-orange-600 hover:text-orange-700"
+                            onClick={() => {
+                              setFailuresUploadId(upload.id);
+                              setShowFailuresViewer(true);
+                            }}
+                            title="View Failed API Calls"
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                            <span className="ml-1">{upload.processing_results.failed}</span>
+                          </Button>
+                        )}
                         <DeleteConfirmDialog
                           title="Delete Upload"
                           description={`Are you sure you want to delete "${upload.file_name}"? This will also delete all ${upload.row_count} packages associated with this upload. This action cannot be undone.`}
@@ -683,6 +702,34 @@ export default function UploadsPage() {
         uploadId={auditLogUploadId}
         title="Upload Audit Log"
       />
+
+      {/* API Failures Viewer Dialog */}
+      {showFailuresViewer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold">API Failures</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowFailuresViewer(false);
+                  setFailuresUploadId(undefined);
+                }}
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-80px)]">
+              <ApiFailuresViewer
+                uploadId={failuresUploadId}
+                environment={environment}
+                showTitle={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

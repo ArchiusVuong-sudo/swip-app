@@ -316,6 +316,72 @@ export type ContentViolationSubcode =
   | "RPL"; // Forced Labor Violation
 
 // =============================================================================
+// Tracking Types (v1.17 Supplement)
+// =============================================================================
+
+// Package Tracking Event Types
+export type PackageTrackingEventType =
+  | "PICKED_UP"
+  | "HANDED_OVER"
+  | "RECEIVED"
+  | "DEPARTED"
+  | "UNLINKED"
+  | "LINKED"
+  | "MANIFEST_SUBMITTED"
+  | "MANIFEST_FAILED"
+  | "MANIFEST_CANCELLED"
+  | "ACAS_SUBMITTED"
+  | "ACAS_FAILED"
+  | "ACAS_CLEARED"
+  | "ACAS_HELD"
+  | "ACAS_HOLD_REMOVED"
+  | "ACAS_PENDING"
+  | "ACAS_STATUS"
+  | "S321_SUBMITTED"
+  | "S321_ACCEPTED"
+  | "S321_FAILED"
+  | "CLEARED"
+  | "HELD"
+  | "HOLD_REMOVED"
+  | "SEIZED"
+  | "STATUS";
+
+// Shipment Tracking Event Types
+export type ShipmentTrackingEventType =
+  | "MASTER_HELD"
+  | "MASTER_HOLD_REMOVED"
+  | "LOCAL_TRANSFER_AUTHORIZED"
+  | "MASTER_STATUS"
+  | "PICKUP_REQUESTED";
+
+// Additional tracking data that varies by event type
+export interface TrackingEventData {
+  from?: string; // Provider Identifier (PICKED_UP)
+  to?: string; // Provider Identifier (HANDED_OVER)
+  locationId?: string; // Location Identifier (RECEIVED, DEPARTED)
+  containerId?: string; // Container Identifier (UNLINKED, LINKED)
+  errorCode?: string; // Customs Error Code (MANIFEST_FAILED, ACAS_FAILED, S321_FAILED)
+  status?: string; // Customs Status Code (various events)
+}
+
+export interface TrackingEvent {
+  type: string;
+  description: string;
+  time: string; // ISO 8601 format
+  data?: TrackingEventData;
+}
+
+export interface PackageTrackingResponse {
+  packageId: string;
+  events: TrackingEvent[];
+}
+
+export interface ShipmentTrackingResponse {
+  shipmentId: string;
+  events: TrackingEvent[];
+}
+
+// =============================================================================
 // API Response Wrapper
 // =============================================================================
 

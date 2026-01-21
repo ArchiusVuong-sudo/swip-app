@@ -27,6 +27,7 @@ import {
 import { QRCodeDisplay } from "@/components/packages/qr-code-display";
 import { ApiResponseDisplay } from "@/components/packages/api-response-display";
 import { PackageDetailActions } from "@/components/packages/package-detail-actions";
+import { PackageErrorsDisplay } from "@/components/packages/package-errors-display";
 
 const statusConfig = {
   pending: { label: "Pending", variant: "secondary" as const, icon: Clock, color: "text-gray-600" },
@@ -150,6 +151,9 @@ export default async function PackageDetailPage({ params }: PackageDetailPagePro
           )}
         </CardContent>
       </Card>
+
+      {/* Errors & Issues - Consolidated View */}
+      <PackageErrorsDisplay pkg={pkg} />
 
       {/* Package Identifiers */}
       <Card>

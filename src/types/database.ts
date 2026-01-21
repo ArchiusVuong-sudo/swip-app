@@ -51,6 +51,15 @@ export type RowStatus =
   | "processed"
   | "failed";
 
+export type RetryStatus =
+  | "pending"
+  | "retrying"
+  | "success"
+  | "exhausted"
+  | "manual_required";
+
+export type Environment = "sandbox" | "production";
+
 export interface Database {
   public: {
     Tables: {
@@ -353,6 +362,10 @@ export interface Database {
           correction_notes: string | null;
           corrected_at: string | null;
           corrected_by: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          submission_hash: string | null;
+          environment: Environment | null;
           created_at: string;
           updated_at: string;
         };
@@ -410,6 +423,10 @@ export interface Database {
           correction_notes?: string | null;
           corrected_at?: string | null;
           corrected_by?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          submission_hash?: string | null;
+          environment?: Environment | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -467,6 +484,10 @@ export interface Database {
           correction_notes?: string | null;
           corrected_at?: string | null;
           corrected_by?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          submission_hash?: string | null;
+          environment?: Environment | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -720,6 +741,174 @@ export interface Database {
           created_at?: string;
         };
       };
+      api_failures: {
+        Row: {
+          id: string;
+          user_id: string;
+          upload_id: string | null;
+          package_id: string | null;
+          shipment_id: string | null;
+          endpoint: string;
+          method: string;
+          request_body: Json | null;
+          status_code: number | null;
+          error_code: string | null;
+          error_message: string | null;
+          error_details: Json | null;
+          environment: Environment;
+          external_id: string | null;
+          row_number: number | null;
+          retry_count: number;
+          max_retries: number;
+          last_retry_at: string | null;
+          next_retry_at: string | null;
+          retry_status: RetryStatus;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          resolution_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          upload_id?: string | null;
+          package_id?: string | null;
+          shipment_id?: string | null;
+          endpoint: string;
+          method: string;
+          request_body?: Json | null;
+          status_code?: number | null;
+          error_code?: string | null;
+          error_message?: string | null;
+          error_details?: Json | null;
+          environment: Environment;
+          external_id?: string | null;
+          row_number?: number | null;
+          retry_count?: number;
+          max_retries?: number;
+          last_retry_at?: string | null;
+          next_retry_at?: string | null;
+          retry_status?: RetryStatus;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          resolution_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          upload_id?: string | null;
+          package_id?: string | null;
+          shipment_id?: string | null;
+          endpoint?: string;
+          method?: string;
+          request_body?: Json | null;
+          status_code?: number | null;
+          error_code?: string | null;
+          error_message?: string | null;
+          error_details?: Json | null;
+          environment?: Environment;
+          external_id?: string | null;
+          row_number?: number | null;
+          retry_count?: number;
+          max_retries?: number;
+          last_retry_at?: string | null;
+          next_retry_at?: string | null;
+          retry_status?: RetryStatus;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          resolution_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      tracking_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          package_id: string | null;
+          shipment_id: string | null;
+          entity_type: "package" | "shipment";
+          safepackage_package_id: string | null;
+          safepackage_shipment_id: string | null;
+          event_type: string;
+          event_description: string;
+          event_time: string;
+          event_data: Json | null;
+          environment: Environment;
+          fetched_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          package_id?: string | null;
+          shipment_id?: string | null;
+          entity_type: "package" | "shipment";
+          safepackage_package_id?: string | null;
+          safepackage_shipment_id?: string | null;
+          event_type: string;
+          event_description: string;
+          event_time: string;
+          event_data?: Json | null;
+          environment: Environment;
+          fetched_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          package_id?: string | null;
+          shipment_id?: string | null;
+          entity_type?: "package" | "shipment";
+          safepackage_package_id?: string | null;
+          safepackage_shipment_id?: string | null;
+          event_type?: string;
+          event_description?: string;
+          event_time?: string;
+          event_data?: Json | null;
+          environment?: Environment;
+          fetched_at?: string;
+          created_at?: string;
+        };
+      };
+      user_platforms: {
+        Row: {
+          id: string;
+          user_id: string;
+          platform_id: string;
+          platform_url: string | null;
+          is_enabled: boolean;
+          seller_id: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          platform_id: string;
+          platform_url?: string | null;
+          is_enabled?: boolean;
+          seller_id?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          platform_id?: string;
+          platform_url?: string | null;
+          is_enabled?: boolean;
+          seller_id?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -733,6 +922,8 @@ export interface Database {
       package_status: PackageStatus;
       shipment_status: ShipmentStatus;
       row_status: RowStatus;
+      retry_status: RetryStatus;
+      environment: Environment;
     };
   };
 }
@@ -755,3 +946,6 @@ export type PackageProduct = Tables<"package_products">;
 export type Shipment = Tables<"shipments">;
 export type ApiLog = Tables<"api_logs">;
 export type ApiConfiguration = Tables<"api_configurations">;
+export type ApiFailure = Tables<"api_failures">;
+export type TrackingEvent = Tables<"tracking_events">;
+export type UserPlatform = Tables<"user_platforms">;

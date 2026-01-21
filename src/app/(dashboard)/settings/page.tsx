@@ -28,6 +28,7 @@ import {
 import { Loader2, TestTube, CheckCircle, XCircle, AlertTriangle, Info, Eye, EyeOff, Key, Trash2 } from "lucide-react";
 import { useEnvironmentStore, type Environment } from "@/stores/environment-store";
 import { ENVIRONMENT_CONFIG } from "@/lib/safepackage/client";
+import { PlatformManagement } from "@/components/settings/platform-management";
 
 export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
@@ -399,6 +400,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Platform Management */}
+      <PlatformManagement />
     </div>
   );
 }

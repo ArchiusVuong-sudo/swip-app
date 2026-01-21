@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Package2,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Uploads", href: "/uploads", icon: Upload },
   { name: "Packages", href: "/packages", icon: Package },
   { name: "Shipments", href: "/shipments", icon: Truck },
+  { name: "API Failures", href: "/failures", icon: AlertTriangle },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
