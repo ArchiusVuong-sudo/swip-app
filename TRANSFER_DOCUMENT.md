@@ -2,9 +2,10 @@
 
 ## Complete End-to-End Documentation for Knowledge Transfer
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 **Last Updated:** January 2026
 **Project:** SWIP (SafePackage Workflow Integration Platform)
+**SafePackage API Version:** v1.23
 
 ---
 
@@ -669,17 +670,19 @@ await client.registerShipment(data);      // Register shipment
 await client.verifyShipment(data);        // Verify with CBP
 ```
 
-### API Endpoints Used
+### API Endpoints Used (v1.23)
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| GET | `/v1/platform` | List supported platforms |
-| POST | `/v1/product/screen` | Screen single product |
-| POST | `/v1/package/screen` | Screen complete package |
-| POST | `/v1/package/audit` | Submit audit images |
-| POST | `/v1/duty/pay` | Pay customs duties |
-| POST | `/v1/shipment/register` | Register shipment |
-| POST | `/v1/shipment/verify` | Verify with CBP |
+| GET | `/v1/platform` | List supported e-commerce platforms |
+| POST | `/v1/product/screen` | Screen a single product for compliance |
+| POST | `/v1/package/screen` | Screen a package (multiple products) |
+| POST | `/v1/package/audit` | Upload audit images if required |
+| POST | `/v1/duty/pay` | Pay customs duties and obtain DDP proof |
+| POST | `/v1/shipment/register` | Register a shipment (consolidation) |
+| POST | `/v1/shipment/verify` | Verify shipment and obtain CBP document |
+
+> **Note:** The endpoint `POST /v1/customs/s321/shipment` (Section 321 pilot data submission) has been **removed** in API v1.23 and is no longer supported.
 
 ---
 
