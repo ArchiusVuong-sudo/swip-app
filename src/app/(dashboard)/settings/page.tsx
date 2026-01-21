@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -24,16 +25,20 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
-import { Loader2, TestTube, CheckCircle, XCircle, AlertTriangle, Info } from "lucide-react";
+import { Loader2, TestTube, CheckCircle, XCircle, AlertTriangle, Info, Eye, EyeOff, Key, Trash2 } from "lucide-react";
 import { useEnvironmentStore, type Environment } from "@/stores/environment-store";
 import { ENVIRONMENT_CONFIG } from "@/lib/safepackage/client";
+import { PlatformManagement } from "@/components/settings/platform-management";
 
 export default function SettingsPage() {
-  const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
+  const [showSandboxKey, setShowSandboxKey] = useState(false);
+  const [showProductionKey, setShowProductionKey] = useState(false);
+  const [sandboxKeyInput, setSandboxKeyInput] = useState("");
+  const [productionKeyInput, setProductionKeyInput] = useState("");
 
-  const { environment, setEnvironment } = useEnvironmentStore();
+  const { environment, setEnvironment, apiKeys, setApiKey, clearApiKey } = useEnvironmentStore();
 
   // Get the current environment config
   const currentConfig = ENVIRONMENT_CONFIG[environment];
@@ -49,7 +54,15 @@ export default function SettingsPage() {
     setTestResult(null);
 
     try {
-      const response = await fetch(`/api/safepackage/platforms?environment=${environment}`);
+      // Include the user's API key if they have one configured
+      const userApiKey = apiKeys[environment];
+      const url = new URL(`/api/safepackage/platforms`, window.location.origin);
+      url.searchParams.set("environment", environment);
+      if (userApiKey) {
+        url.searchParams.set("apiKey", userApiKey);
+      }
+
+      const response = await fetch(url.toString());
 
       if (response.ok) {
         setTestResult("success");
@@ -67,13 +80,39 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveApiKey = (env: Environment, key: string) => {
+    if (!key.trim()) {
+      toast.error("Please enter an API key");
+      return;
+    }
+    setApiKey(env, key.trim());
+    if (env === "sandbox") {
+      setSandboxKeyInput("");
+    } else {
+      setProductionKeyInput("");
+    }
+    toast.success(`${env === "sandbox" ? "Sandbox" : "Production"} API key saved`);
+    setTestResult(null);
+  };
+
+  const handleClearApiKey = (env: Environment) => {
+    clearApiKey(env);
+    toast.success(`${env === "sandbox" ? "Sandbox" : "Production"} API key cleared. Using system default.`);
+    setTestResult(null);
+  };
+
+  const maskApiKey = (key: string) => {
+    if (key.length <= 8) return "••••••••";
+    return key.substring(0, 4) + "••••••••" + key.substring(key.length - 4);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
         <p className="text-muted-foreground">
-          Configure your SafePackage API environment.
+          Configure your SafePackage API environment and credentials.
         </p>
       </div>
 
@@ -162,6 +201,138 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* API Keys Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            API Keys
+          </CardTitle>
+          <CardDescription>
+            Optionally configure your own API keys. If not provided, the system default keys will be used.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Sandbox API Key */}
+          <div className="space-y-3 p-4 border rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">Sandbox</Badge>
+                <span className="text-sm font-medium">API Key</span>
+              </div>
+              {apiKeys.sandbox && (
+                <Badge variant="outline" className="text-green-600">
+                  Custom Key
+                </Badge>
+              )}
+            </div>
+
+            {apiKeys.sandbox ? (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 p-2 bg-muted rounded font-mono text-sm">
+                  {showSandboxKey ? apiKeys.sandbox : maskApiKey(apiKeys.sandbox)}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowSandboxKey(!showSandboxKey)}
+                >
+                  {showSandboxKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleClearApiKey("sandbox")}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="password"
+                  placeholder="Enter your sandbox API key"
+                  value={sandboxKeyInput}
+                  onChange={(e) => setSandboxKeyInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={() => handleSaveApiKey("sandbox", sandboxKeyInput)}
+                  disabled={!sandboxKeyInput.trim()}
+                >
+                  Save
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {apiKeys.sandbox
+                ? "Using your custom sandbox API key."
+                : "Using system default sandbox key. Enter your own key to override."}
+            </p>
+          </div>
+
+          {/* Production API Key */}
+          <div className="space-y-3 p-4 border rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="destructive">Production</Badge>
+                <span className="text-sm font-medium">API Key</span>
+              </div>
+              {apiKeys.production && (
+                <Badge variant="outline" className="text-green-600">
+                  Custom Key
+                </Badge>
+              )}
+            </div>
+
+            {apiKeys.production ? (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 p-2 bg-muted rounded font-mono text-sm">
+                  {showProductionKey ? apiKeys.production : maskApiKey(apiKeys.production)}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowProductionKey(!showProductionKey)}
+                >
+                  {showProductionKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleClearApiKey("production")}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="password"
+                  placeholder="Enter your production API key"
+                  value={productionKeyInput}
+                  onChange={(e) => setProductionKeyInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={() => handleSaveApiKey("production", productionKeyInput)}
+                  disabled={!productionKeyInput.trim()}
+                >
+                  Save
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {apiKeys.production
+                ? "Using your custom production API key."
+                : "Using system default production key. Enter your own key to override."}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Current Status */}
       <Card>
         <CardHeader>
@@ -185,9 +356,9 @@ export default function SettingsPage() {
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium">API Key Status</p>
-              <Badge variant="default">
-                Configured
+              <p className="text-sm font-medium">API Key Source</p>
+              <Badge variant={apiKeys[environment] ? "default" : "secondary"}>
+                {apiKeys[environment] ? "Custom Key" : "System Default"}
               </Badge>
             </div>
           </div>
@@ -229,6 +400,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Platform Management */}
+      <PlatformManagement />
     </div>
   );
 }

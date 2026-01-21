@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { CreateShipmentDialog } from "./create-shipment-dialog";
 import { UploadShipmentCSVDialog } from "./upload-shipment-csv-dialog";
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 
 interface Shipment {
   id: string;
@@ -146,6 +147,25 @@ export function ShipmentsClient({
 
   const handleSuccess = () => {
     fetchShipments(pagination.page, pagination.pageSize);
+  };
+
+  const handleDeleteShipment = async (shipmentId: string) => {
+    try {
+      const response = await fetch(`/api/shipments/${shipmentId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete shipment");
+      }
+
+      toast.success("Shipment deleted successfully");
+      fetchShipments(pagination.page, pagination.pageSize);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete shipment");
+      throw error;
+    }
   };
 
   const handleVerify = async (shipmentId: string) => {
@@ -308,6 +328,13 @@ export function ShipmentsClient({
                           <Button variant="ghost" size="sm" asChild>
                             <Link href={`/shipments/${shipment.id}`}>View</Link>
                           </Button>
+                          {shipment.status === "pending" && (
+                            <DeleteConfirmDialog
+                              title="Delete Shipment"
+                              description={`Are you sure you want to delete shipment "${shipment.external_id}"? This action cannot be undone.`}
+                              onConfirm={() => handleDeleteShipment(shipment.id)}
+                            />
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

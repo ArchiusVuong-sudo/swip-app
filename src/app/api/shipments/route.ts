@@ -234,8 +234,6 @@ export async function POST(request: NextRequest) {
       lineNumber: transportation.lineNumber,
       shippingDate: transportation.shippingDate,
       scheduledArrivalDate: transportation.scheduledArrivalDate,
-      originatorCode: originatorCode,
-      entryType: entryType,
       firmsCode: transportation.firmsCode,
       terminalOperator: transportation.terminalOperator,
     };

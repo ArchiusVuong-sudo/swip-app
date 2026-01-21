@@ -4,7 +4,8 @@ import { getSafePackageClient, type Environment } from "@/lib/safepackage/client
 import { processProductImages, parseImageField } from "@/lib/utils/image";
 import { CSV_COLUMNS } from "@/lib/csv/constants";
 import type { PackageScreeningRequest, PackageProduct } from "@/lib/safepackage/types";
-import type { Upload } from "@/types/database";
+import type { Upload, Environment as DbEnvironment } from "@/types/database";
+import crypto from "crypto";
 
 // Status mapping from API code to our status
 const codeToStatus: Record<number, string> = {
@@ -121,6 +122,17 @@ function transformCSVRow(rawRow: RawCSVRow): RowData {
   };
 }
 
+// Generate a hash for duplicate detection
+function generateSubmissionHash(row: RowData): string {
+  const hashInput = [
+    row.external_id || "",
+    row.platform_id || "",
+    row.barcode || "",
+    row.house_bill_number || "",
+  ].join("|");
+  return crypto.createHash("md5").update(hashInput).digest("hex");
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -161,10 +173,15 @@ export async function POST(
       );
     }
 
-    // Update status to processing
+    // Update status to processing with user stamp and environment
     await (supabase
       .from("uploads") as ReturnType<typeof supabase.from>)
-      .update({ status: "processing" } as Record<string, unknown>)
+      .update({
+        status: "processing",
+        processing_started_at: new Date().toISOString(),
+        updated_by: user.id,
+        environment: environment,
+      } as Record<string, unknown>)
       .eq("id", uploadId);
 
     // Get the raw data rows and transform them
@@ -181,6 +198,24 @@ export async function POST(
     // Initialize SafePackage client with the selected environment
     const client = getSafePackageClient(environment);
 
+    // Check for existing successful submissions to prevent duplicates
+    const submissionHashes = rows.map(row => ({
+      row,
+      hash: generateSubmissionHash(row),
+    }));
+
+    // Query existing successful packages with these hashes
+    const { data: existingPackagesData } = await supabase
+      .from("packages")
+      .select("submission_hash, external_id, safepackage_id")
+      .eq("user_id", user.id)
+      .eq("environment", environment)
+      .eq("screening_code", 1) // Only accepted packages
+      .in("submission_hash", submissionHashes.map(h => h.hash));
+
+    const existingPackages = existingPackagesData as Array<{ submission_hash: string | null; external_id: string; safepackage_id: string | null }> | null;
+    const existingHashes = new Set(existingPackages?.map(p => p.submission_hash) || []);
+
     // Process each row
     const results = {
       total: rows.length,
@@ -190,22 +225,62 @@ export async function POST(
       inconclusive: 0,
       auditRequired: 0,
       failed: 0,
+      skipped: 0, // Duplicates skipped
       packages: [] as Array<{
         externalId: string;
         status: string;
         safepackageId?: string;
         error?: string;
+        skipped?: boolean;
+        rowNumber?: number;
       }>,
     };
 
     // Process rows in parallel batches for better performance
-    const BATCH_SIZE = 5; // Process 5 rows at a time
+    // Increased batch size from 5 to 15 for faster throughput
+    const BATCH_SIZE = 15;
+
+    // Failures to log
+    const failuresToInsert: Array<{
+      user_id: string;
+      upload_id: string;
+      endpoint: string;
+      method: string;
+      request_body: Record<string, unknown>;
+      status_code: number | null;
+      error_code: string | null;
+      error_message: string | null;
+      error_details: Record<string, unknown> | null;
+      environment: DbEnvironment;
+      external_id: string;
+      row_number: number;
+      retry_status: string;
+      max_retries: number;
+    }> = [];
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
+      const batchStartIndex = i;
       console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(rows.length / BATCH_SIZE)}`);
 
-      const batchPromises = batch.map(async (row) => {
+      // Collect successful packages for batch insert
+      const packagesToInsert: Record<string, unknown>[] = [];
+
+      const batchPromises = batch.map(async (row, batchIndex) => {
+        const rowNumber = batchStartIndex + batchIndex + 1; // 1-indexed row number
+        const submissionHash = generateSubmissionHash(row);
+
+        // Check for duplicate
+        if (existingHashes.has(submissionHash)) {
+          return {
+            success: true,
+            skipped: true,
+            externalId: row.external_id || "",
+            status: "skipped",
+            rowNumber,
+          };
+        }
+
         try {
           // Build the package screening request (async for image fetching)
           console.log("Building package request for:", row.external_id);
@@ -221,55 +296,57 @@ export async function POST(
             const screeningResult = response.data;
             const status = codeToStatus[screeningResult.code] || "pending";
 
-            // Create package record in database
-            const { error: packageError } = await (supabase.from("packages") as ReturnType<typeof supabase.from>).insert({
-              user_id: user.id,
-              upload_id: uploadId,
-              external_id: row.external_id,
-              house_bill_number: row.house_bill_number,
-              barcode: row.barcode,
-              safepackage_id: screeningResult.packageId,
-              screening_code: screeningResult.code,
-              screening_status: screeningResult.status,
-              status: status,
-              label_qr_code: screeningResult.labelQrCode,
-              platform_id: row.platform_id,
-              seller_id: row.seller_id,
-              export_country: row.export_country,
-              destination_country: row.destination_country,
-              weight_value: row.weight_value,
-              weight_unit: row.weight_unit,
-              shipper_name: row.shipper_name,
-              shipper_line1: row.shipper_address_1,
-              shipper_line2: row.shipper_address_2,
-              shipper_city: row.shipper_city,
-              shipper_state: row.shipper_state,
-              shipper_postal_code: row.shipper_postal_code,
-              shipper_country: row.shipper_country,
-              shipper_phone: row.shipper_phone,
-              shipper_email: row.shipper_email,
-              consignee_name: row.consignee_name,
-              consignee_line1: row.consignee_address_1,
-              consignee_line2: row.consignee_address_2,
-              consignee_city: row.consignee_city,
-              consignee_state: row.consignee_state,
-              consignee_postal_code: row.consignee_postal_code,
-              consignee_country: row.consignee_country,
-              consignee_phone: row.consignee_phone,
-              consignee_email: row.consignee_email,
-              screening_response: screeningResult,
-            } as Record<string, unknown>);
-
-            if (packageError) {
-              console.error("Error creating package:", packageError);
-            }
-
+            // Return package data for batch insert
             return {
               success: true,
               externalId: row.external_id || "",
               status: screeningResult.status,
               safepackageId: screeningResult.packageId,
               code: screeningResult.code,
+              rowNumber,
+              packageData: {
+                user_id: user.id,
+                upload_id: uploadId,
+                external_id: row.external_id,
+                house_bill_number: row.house_bill_number,
+                barcode: row.barcode,
+                safepackage_id: screeningResult.packageId,
+                screening_code: screeningResult.code,
+                screening_status: screeningResult.status,
+                status: status,
+                label_qr_code: screeningResult.labelQrCode,
+                platform_id: row.platform_id,
+                seller_id: row.seller_id,
+                export_country: row.export_country,
+                destination_country: row.destination_country,
+                weight_value: row.weight_value,
+                weight_unit: row.weight_unit,
+                shipper_name: row.shipper_name,
+                shipper_line1: row.shipper_address_1,
+                shipper_line2: row.shipper_address_2,
+                shipper_city: row.shipper_city,
+                shipper_state: row.shipper_state,
+                shipper_postal_code: row.shipper_postal_code,
+                shipper_country: row.shipper_country,
+                shipper_phone: row.shipper_phone,
+                shipper_email: row.shipper_email,
+                consignee_name: row.consignee_name,
+                consignee_line1: row.consignee_address_1,
+                consignee_line2: row.consignee_address_2,
+                consignee_city: row.consignee_city,
+                consignee_state: row.consignee_state,
+                consignee_postal_code: row.consignee_postal_code,
+                consignee_country: row.consignee_country,
+                consignee_phone: row.consignee_phone,
+                consignee_email: row.consignee_email,
+                screening_response: screeningResult,
+                // New fields for tracking
+                environment: environment,
+                submission_hash: submissionHash,
+                last_submitted_at: new Date().toISOString(),
+                created_by: user.id,
+                updated_by: user.id,
+              },
             };
           } else {
             // Log more detailed error for debugging
@@ -285,20 +362,62 @@ export async function POST(
             } else if (errorDetails?.message) {
               errorMessage = errorDetails.message as string;
             }
+
+            // Prepare failure record for batch insert
+            const failureRecord = {
+              user_id: user.id,
+              upload_id: uploadId,
+              endpoint: "/v1/package/screen",
+              method: "POST",
+              request_body: packageRequest as unknown as Record<string, unknown>,
+              status_code: response.error?.code ? parseInt(response.error.code, 10) || null : null,
+              error_code: response.error?.code || null,
+              error_message: errorMessage,
+              error_details: errorDetails || null,
+              environment: environment as DbEnvironment,
+              external_id: row.external_id || "",
+              row_number: rowNumber,
+              retry_status: "pending",
+              max_retries: 3,
+            };
+
             return {
               success: false,
               externalId: row.external_id || "",
               status: "failed",
               error: errorMessage,
+              errorCode: response.error?.code,
+              errorDetails: errorDetails,
+              rowNumber,
+              failureRecord,
             };
           }
         } catch (error) {
           console.error("Error processing row:", row.external_id, error);
+          const errorMessage = error instanceof Error ? error.message : "Processing error";
+
           return {
             success: false,
             externalId: row.external_id || "",
             status: "failed",
-            error: error instanceof Error ? error.message : "Processing error",
+            error: errorMessage,
+            rowNumber,
+            failureRecord: {
+              user_id: user.id,
+              upload_id: uploadId,
+              endpoint: "/v1/package/screen",
+              method: "POST",
+              request_body: {} as Record<string, unknown>,
+              status_code: null,
+              error_code: "PROCESSING_ERROR",
+              error_message: errorMessage,
+              error_details: null,
+              environment: environment as DbEnvironment,
+              external_id: row.external_id || "",
+              row_number: rowNumber,
+              retry_status: "pending",
+              max_retries: 3,
+            },
           };
         }
       });
@@ -306,9 +425,18 @@ export async function POST(
       // Wait for batch to complete
       const batchResults = await Promise.all(batchPromises);
 
-      // Aggregate results
+      // Collect packages for batch insert and aggregate results
       for (const result of batchResults) {
-        if (result.success) {
+        if (result.skipped) {
+          results.skipped++;
+          results.packages.push({
+            externalId: result.externalId,
+            status: "skipped",
+            skipped: true,
+            rowNumber: result.rowNumber,
+          });
+        } else if (result.success && result.packageData) {
+          packagesToInsert.push(result.packageData);
           results.processed++;
           if (result.code === 1) results.accepted++;
           else if (result.code === 2) results.rejected++;
@@ -319,6 +447,7 @@ export async function POST(
             externalId: result.externalId,
             status: result.status,
             safepackageId: result.safepackageId,
+            rowNumber: result.rowNumber,
           });
         } else {
           results.failed++;
@@ -326,8 +455,30 @@ export async function POST(
             externalId: result.externalId,
             status: "failed",
             error: result.error,
+            rowNumber: result.rowNumber,
           });
+
+          // Collect failure for batch insert
+          if (result.failureRecord) {
+            failuresToInsert.push(result.failureRecord);
+          }
         }
+      }
+
+      // Batch insert all successful packages at once (much faster than individual inserts)
+      if (packagesToInsert.length > 0) {
+        const { error: batchInsertError } = await (supabase.from("packages") as ReturnType<typeof supabase.from>).insert(packagesToInsert);
+        if (batchInsertError) {
+          console.error("Error batch inserting packages:", batchInsertError);
+        }
+      }
+    }
+
+    // Batch insert all API failures
+    if (failuresToInsert.length > 0) {
+      const { error: failureInsertError } = await (supabase.from("api_failures") as ReturnType<typeof supabase.from>).insert(failuresToInsert);
+      if (failureInsertError) {
+        console.error("Error batch inserting API failures:", failureInsertError);
       }
     }
 
@@ -341,6 +492,9 @@ export async function POST(
         status: finalStatus,
         processing_completed_at: new Date().toISOString(),
         processing_results: results,
+        updated_by: user.id,
+        failed_count: results.failed,
+        retry_count: 0,
       } as Record<string, unknown>)
       .eq("id", uploadId);
 

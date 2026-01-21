@@ -226,8 +226,6 @@ async function registerShipment(
     scheduledArrivalDate: shipment.transportation.scheduledArrivalDate!,
     firmsCode: shipment.transportation.firmsCode,
     terminalOperator: shipment.transportation.terminalOperator,
-    originatorCode: shipment.originatorCode,
-    entryType: shipment.entryType === "" ? undefined : shipment.entryType,
   };
 
   // Build registration request (fields validated above)

@@ -25,6 +25,9 @@ import {
   QrCode,
 } from "lucide-react";
 import { QRCodeDisplay } from "@/components/packages/qr-code-display";
+import { ApiResponseDisplay } from "@/components/packages/api-response-display";
+import { PackageDetailActions } from "@/components/packages/package-detail-actions";
+import { PackageErrorsDisplay } from "@/components/packages/package-errors-display";
 
 const statusConfig = {
   pending: { label: "Pending", variant: "secondary" as const, icon: Clock, color: "text-gray-600" },
@@ -90,6 +93,7 @@ export default async function PackageDetailPage({ params }: PackageDetailPagePro
           <StatusIcon className="h-4 w-4" />
           {status.label}
         </Badge>
+        <PackageDetailActions packageId={pkg.id} externalId={pkg.external_id} />
       </div>
 
       {/* Screening Result Summary */}
@@ -147,6 +151,9 @@ export default async function PackageDetailPage({ params }: PackageDetailPagePro
           )}
         </CardContent>
       </Card>
+
+      {/* Errors & Issues - Consolidated View */}
+      <PackageErrorsDisplay pkg={pkg} />
 
       {/* Package Identifiers */}
       <Card>
@@ -275,9 +282,7 @@ export default async function PackageDetailPage({ params }: PackageDetailPagePro
             <CardDescription>Raw response from SafePackage API</CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="bg-muted p-4 rounded-lg overflow-auto text-xs">
-              {JSON.stringify(pkg.screening_response, null, 2)}
-            </pre>
+            <ApiResponseDisplay response={pkg.screening_response} />
           </CardContent>
         </Card>
       )}

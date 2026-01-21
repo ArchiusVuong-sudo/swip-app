@@ -3,11 +3,12 @@ import { getSafePackageClient, type Environment } from "@/lib/safepackage/client
 
 export async function GET(request: NextRequest) {
   try {
-    // Get environment from query params
+    // Get environment and optional user API key from query params
     const searchParams = request.nextUrl.searchParams;
     const environment = (searchParams.get("environment") as Environment) || "sandbox";
+    const userApiKey = searchParams.get("apiKey") || undefined;
 
-    const client = getSafePackageClient(environment);
+    const client = getSafePackageClient(environment, userApiKey);
     const result = await client.getPlatforms();
 
     if (!result.success) {
